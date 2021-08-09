@@ -31,7 +31,11 @@ typedef struct {
 #define OT_682ARG 11
 #define OT_END    12
 #define OT_SBR    13
+#define OT_PUSH   14
+#define OT_POP    15
 
+#define OP_LOW    0x62
+#define OP_HIGH   0x61
 #define OP_DOT    0x51
 #define OP_MOD    0x43
 #define OP_MUL    0x42
@@ -172,6 +176,8 @@ OPCODE opcodes[] = {
   { "scal",  OT_682ARG, 0x80  },
   { "sret",  OT_680ARG, 0x90  },
   { "end",   OT_END,    0x00  },
+  { "push",  OT_PUSH,   0x00  },
+  { "pop",   OT_POP,    0x00  },
   { "",      0,         0     },
   };
 
@@ -375,14 +381,20 @@ char* asm_convertNumber(char* buffer, dword* value, byte* success) {
       return buffer+2;
       }
     if (*(buffer+1) >= 'a' && *(buffer+1) <= 'f') {
-      *value = *(buffer+1) - 87;
-      *success = 0xff;
-      return buffer+2;
+      if (!(*(buffer+2) >= 'a' && *(buffer+2) <= 'z') &&
+          !(*(buffer+2) >= 'A' && *(buffer+2) <= 'Z')) {
+        *value = *(buffer+1) - 87;
+        *success = 0xff;
+        return buffer+2;
+        }
       }
     if (*(buffer+1) >= 'A' && *(buffer+1) <= 'F') {
-      *value = *(buffer+1) - 55;
-      *success = 0xff;
-      return buffer+2;
+      if (!(*(buffer+2) >= 'a' && *(buffer+2) <= 'z') &&
+          !(*(buffer+2) >= 'A' && *(buffer+2) <= 'Z')) {
+        *value = *(buffer+1) - 55;
+        *success = 0xff;
+        return buffer+2;
+        }
       }
     if (*(buffer+1) == '1') {
       if (*(buffer+2) >= '0' && *(buffer+2) <= '5') {
@@ -482,6 +494,14 @@ int asm_reduce(char last) {
     return 0;
     }
   switch (op) {
+    case OP_HIGH:
+         asm_numStack[asm_nstackSize-1] =
+           (asm_numStack[asm_nstackSize-1] & 0xff00) >> 8;
+         break;
+    case OP_LOW:
+         asm_numStack[asm_nstackSize-1] =
+           (asm_numStack[asm_nstackSize-1] & 0x00ff);
+         break;
     case OP_DOT:
          if (asm_numStack[asm_nstackSize-1] == 0)
            asm_numStack[asm_nstackSize-2] &= 0x00ff;
@@ -621,6 +641,16 @@ char* asm_evaluate(char* buffer) {
         buffer++;
         func = -1;
         }
+      if (strncasecmp(buffer,"high ",5) == 0) {
+         asm_tokens[asm_numTokens++] = OP_HIGH;
+         buffer+=5;
+         func = -1;
+         }
+      if (strncasecmp(buffer,"low ",4) == 0) {
+         asm_tokens[asm_numTokens++] = OP_LOW;
+         buffer+=4;
+         func = -1;
+         }
       }
 
     term = 0;
@@ -655,7 +685,7 @@ char* asm_evaluate(char* buffer) {
       }
 
     if (term == 0) {
-      printf("***ERROR: Expression error, invalid term");
+      printf("***ERROR: Expression error, invalid term: %s",buffer);
       errors++;
       return buffer;
       }
@@ -976,6 +1006,21 @@ void Asm(char* line) {
            if (passNumber == 1) {
              execAddr = processArgs(args) & 0xffff;
              }
+           break;
+      case OT_PUSH:
+           value = processArgs(args) & 0xf;
+           output(GHI | value);
+           output(STXD);
+           output(GLO | value);
+           output(STXD);
+           break;
+      case OT_POP:
+           value = processArgs(args) & 0xf;
+           output(IRX);
+           output(LDXA);
+           output(PLO | value);
+           output(LDX);
+           output(PHI | value);
            break;
       default:
            printf("***ERROR: Unknown instruction type: %d\n",opcodes[pos].typ);
