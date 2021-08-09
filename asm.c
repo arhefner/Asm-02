@@ -195,7 +195,6 @@ char* trim(char* line) {
 
 void addDefine(char* define, int value, int redefine) {
   int i;
-  if (passNumber == 2) return;
   for (i=0; i<numDefines; i++)
     if (strcasecmp(define, defines[i]) == 0) {
       if (redefine) {
@@ -227,6 +226,29 @@ int getDefine(char* define) {
       return defineValues[i];
       }
   return 0;
+  }
+
+void delDefine(char* define) {
+  int pos;
+  int i;
+  pos = -1;
+  for (i=0; i<numDefines; i++)
+    if (strcasecmp(define, defines[i]) == 0) pos = i;
+  if (pos < 0) return;
+  free(defines[pos]);
+  for (i=pos; i<numDefines-1; i++) {
+    defines[i] = defines[i+1];
+    defineValues[i] = defineValues[i+1];
+    }
+  numDefines--;
+  if (numDefines == 0) {
+    free(defines);
+    free(defineValues);
+    }
+  else {
+    defines = (char**)realloc(defines, sizeof(char*) * numDefines);
+    defineValues = (int*)realloc(defineValues, sizeof(int) * numDefines);
+    }
   }
 
 void addLabel(char* label, word value) {
@@ -369,6 +391,7 @@ char* asm_convertNumber(char* buffer, dword* value, byte* success) {
   ishex = 0;
   val1 = 0;
   val2 = 0;
+/*
   if (*buffer == 'r' || *buffer == 'R') {
     if (*(buffer+1) == '0') {
       *value = 0;
@@ -409,6 +432,7 @@ char* asm_convertNumber(char* buffer, dword* value, byte* success) {
         }
       }
     }
+*/
   if (*buffer == '\'' && *(buffer+2) == '\'') {
     buffer++;
     *value = *buffer;
@@ -607,7 +631,7 @@ void asm_add(int op) {
   asm_tokens[asm_numTokens++] = op;
   }
 
-char* asm_evaluate(char* buffer) {
+char* asm_evaluate(char* buffer,char useDefines) {
   char term;
   int p;
   char token[64];
@@ -677,7 +701,10 @@ char* asm_evaluate(char* buffer) {
           token[p++] = *buffer++;
           }
         token[p] = 0;
-        asm_numStack[asm_nstackSize++] = getLabel(token);
+        if (useDefines == 'Y')
+          asm_numStack[asm_nstackSize++] = getDefine(token);
+        else
+          asm_numStack[asm_nstackSize++] = getLabel(token);
         asm_tokens[asm_numTokens++] = 0;
         asm_tokens[asm_numTokens++] = OP_NUM;
         term = -1;
@@ -724,7 +751,7 @@ char* asm_evaluate(char* buffer) {
   }
 
 dword processArgs(char* args) {
-  args = asm_evaluate(args);
+  args = asm_evaluate(args,'N');
   return asm_numStack[0];
   }
 
@@ -739,7 +766,7 @@ void processDb(char* args,char typ) {
       if (*args == '\'') args++;
       }
     else {
-      args = asm_evaluate(args);
+      args = asm_evaluate(args,'N');
       num = asm_numStack[0];
       if (typ == 'B') output(num & 0xff);
       else if (typ == 'W') {
@@ -785,12 +812,25 @@ void Asm(char* line) {
   int   i;
   orig = line;
   sourceLine = line;
+  if (*line == '.') {
+    if (strncasecmp(line,".1805",5) == 0) { use1805 = 0xff; return; }
+    if (strncasecmp(line,".list",5) == 0) { showList = 0xff; return; }
+    if (strncasecmp(line,".sym",4) == 0) { showSymbols = 0xff; return; }
+    }
   if (numNests > 0) {
     if (strncasecmp(line,"#else",5) == 0 && nests[numNests-1] != 'I') {
       nests[numNests-1] = (nests[numNests-1] == 'Y') ? 'N' : 'Y';
       return;
       }
     if (nests[numNests-1] != 'Y' && strncasecmp(line,"#ifdef",6) == 0) {
+      nests[numNests++] = 'I';
+      return;
+      }
+    if (nests[numNests-1] != 'Y' && strncasecmp(line,"#ifndef",7) == 0) {
+      nests[numNests++] = 'I';
+      return;
+      }
+    if (nests[numNests-1] != 'Y' && strncasecmp(line,"#if ",4) == 0) {
       nests[numNests++] = 'I';
       return;
       }
@@ -805,6 +845,17 @@ void Asm(char* line) {
     if (nests[numNests-1] != 'Y') return;
     }
   if (*line == '#') {
+    if (strncasecmp(line,"#if ",4) == 0) {
+      line += 4;
+      asm_evaluate(line,'Y');
+      if (asm_numStack[0] != 0) {
+        nests[numNests++] = 'Y';
+        }
+      else {
+        nests[numNests++] = 'N';
+        }
+      return;
+      }
     if (strncasecmp(line,"#define",7) == 0) {
       line += 7;
       line = trim(line);
@@ -815,6 +866,18 @@ void Asm(char* line) {
       i = atoi(line);
       if (i == 0) i = 1;
       addDefine(label, i, 0);
+      return;
+      }
+    if (strncasecmp(line,"#undef",6) == 0) {
+      line += 6;
+      line = trim(line);
+      pos = 0;
+      while (*line != 0 && *line > ' ') label[pos++] = *line++;
+      label[pos] = 0;
+      line = trim(line);
+      i = atoi(line);
+      if (i == 0) i = 1;
+      delDefine(label);
       return;
       }
     if (strncasecmp(line,"#ifdef",6) == 0) {
@@ -828,6 +891,20 @@ void Asm(char* line) {
         }
       else {
         nests[numNests++] = 'N';
+        }
+      return;
+      }
+    if (strncasecmp(line,"#ifndef",7) == 0) {
+      line += 7;
+      line = trim(line);
+      pos = 0;
+      while (*line != 0 && *line > ' ') label[pos++] = *line++;
+      label[pos] = 0;
+      if (getDefine(label)) {
+        nests[numNests++] = 'N';
+        }
+      else {
+        nests[numNests++] = 'Y';
         }
       return;
       }
@@ -851,13 +928,6 @@ void Asm(char* line) {
     }
 
   asmAddress = address;
-  if (passNumber == 2) {
-    if (showAsm) printf("%s\n",line);
-    if (useAsm) {
-      write(asmFile, line, strlen(line));
-      write(asmFile, lineEnding, strlen(lineEnding));
-      }
-    }
   strcpy(label,"");
   strcpy(opcode,"");
   strcpy(args,"");
@@ -979,13 +1049,13 @@ void Asm(char* line) {
              errors++;
              }
            output(0x68);
-           pargs = asm_evaluate(args);
+           pargs = asm_evaluate(args,'N');
            output(opcodes[pos].byte1 | (asm_numStack[0] & 0xf));
            pargs = trim(pargs);
            if (*pargs == ',') {
              pargs++;
              pargs = trim(pargs);
-             pargs = asm_evaluate(pargs);
+             pargs = asm_evaluate(pargs,'N');
              output((asm_numStack[0] & 0xff00) >> 8);
              output(asm_numStack[0] & 0xff);
              }
@@ -1082,8 +1152,6 @@ void processROM(char* buffer) {
 
 void processOption(char* option) {
     if (strcmp(option,"-1805") == 0) use1805 = -1;
-    if (strcmp(option,"-a") == 0) useAsm = -1;
-    if (strcmp(option,"-A") == 0) showAsm = -1;
     if (strcmp(option,"-b") == 0) outMode = 'B';
     if (strcmp(option,"-i") == 0) outMode = 'I';
     if (strcmp(option,"-r") == 0) outMode = 'R';
@@ -1167,6 +1235,12 @@ int pass(int p) {
   close(outFile);
   if (createLst) fclose(lstFile);
   if (numNests > 0) printf("#ifdef without #endif\n");
+  for (i=0; i<numDefines; i++)
+    free(defines[i]);
+  if (numDefines > 0) {
+    free(defines);
+    free(defineValues);
+    }
   return 0;
   }
 
@@ -1178,11 +1252,9 @@ int main(int argc, char** argv) {
   ramEnd = 0xffff;
   romStart = 0xffff;
   romEnd = 0xffff;
-  showAsm = 0;
   showList = 0;
   showSymbols = 0;
   use1805 = 0;
-  useAsm = 0;
   numDefines = 0;
   numLabels = 0;
   errors = 0;
@@ -1207,7 +1279,30 @@ int main(int argc, char** argv) {
     }
   strcpy(lstName,baseName);
   strcat(lstName,".lst");
+  addLabel("r0",0);
+  addLabel("r1",1);
+  addLabel("r2",2);
+  addLabel("r3",3);
+  addLabel("r4",4);
+  addLabel("r5",5);
+  addLabel("r6",6);
+  addLabel("r7",7);
+  addLabel("r8",8);
+  addLabel("r9",9);
+  addLabel("r10",10);
+  addLabel("r11",11);
+  addLabel("r12",12);
+  addLabel("r13",13);
+  addLabel("r14",14);
+  addLabel("r15",15);
+  addLabel("ra",10);
+  addLabel("rb",11);
+  addLabel("rc",12);
+  addLabel("rd",13);
+  addLabel("re",14);
+  addLabel("rf",15);
   i = pass(1);
+  numDefines = 0;
   if (i == 0 && errors == 0) pass(2);
 
   printf("\n");
@@ -1218,11 +1313,9 @@ int main(int argc, char** argv) {
 
   if (showSymbols) {
     printf("Symbols:\n");
-    for (i=0; i<numLabels; i++)
+    for (i=22; i<numLabels; i++)
       printf("  %04x  %s\n",labelValues[i],labels[i]);
     }
-//  printf("Defines:\n");
-//  for (i=0; i<numDefines; i++)
-//    printf("  %s\n",defines[i]);
+  return 0;
   }
 

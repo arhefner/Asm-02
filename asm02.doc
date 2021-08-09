@@ -1,0 +1,40 @@
+.1805      - Enable 1805 mode
+.list      - Enable show list
+.sym       - Show symbols
+
+
+Command line switches:
+  -1805         - Enable 1805 mode
+  -b            - Output in binary
+  -r            - Output in RCS hex
+  -i            - Output in Intel hex
+  -s            - Show symbols
+  -melf         - Set Micro/Elf memory model
+  -pev          - Set Pico/Elf memory model
+  -pev2         - Set Pico/Elf V2 memory model
+  -elf2k        - Set Elf2000 memory model
+  -mclo         - Set Membership Card low RAM memory model
+  -mchi         - Set Membership Card high RAM memory model
+  -mchip        - Set MemberChip Card memory model
+  -ram=low-high - Set explicit RAM region
+  -rom=how-high - Set explicit ROM region
+
+Preprocessor:
+  #include filename
+  #define symbol value
+  #undef symbol
+  #if expr
+  #ifdef symbol
+  #ifndef symbol
+  #else
+  #endif
+
+Pseudo ops:
+  db  bb,bb,... - Define bytes
+  dw  ww,ww,... - Define words
+  dd  dd,dd,... - Define double words
+  ds  ww        - Define storage
+  equ expr      - Set label to value
+  org expr      - Set assembly address
+  push reg      - Push 16-bit R-register
+  pop  rg       - Pop 16-bit R-register
