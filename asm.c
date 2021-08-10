@@ -1312,9 +1312,20 @@ int main(int argc, char** argv) {
   addLabel("rd",13);
   addLabel("re",14);
   addLabel("rf",15);
+
+  for (i=0; i<argc; i++) {
+    if (strncmp(argv[i],"-D",2) == 0) {
+      addDefine(argv[i]+2,1,0);
+      }
+    }
   i = pass(1);
   numDefines = 0;
   if (i == 0 && errors == 0) {
+    for (i=0; i<argc; i++) {
+      if (strncmp(argv[i],"-D",2) == 0) {
+        addDefine(argv[i]+2,1,0);
+        }
+      }
     pass(2);
     }
   else printf("Errors during pass 1, aborting pass 2\n");
