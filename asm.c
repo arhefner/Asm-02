@@ -1245,11 +1245,6 @@ int pass(int p) {
   close(outFile);
   if (createLst) fclose(lstFile);
   if (numNests > 0) printf("#ifdef without #endif\n");
-
-printf("Defines:\n");
-for (i=0; i<numDefines; i++)
-printf("  %04x  %s\n",defineValues[i],defines[i]);
-
   for (i=0; i<numDefines; i++)
     free(defines[i]);
   if (numDefines > 0) {
