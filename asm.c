@@ -33,6 +33,7 @@ typedef struct {
 #define OT_SBR    13
 #define OT_PUSH   14
 #define OT_POP    15
+#define OT_MOV    16
 
 #define OP_LOW    0x62
 #define OP_HIGH   0x61
@@ -178,6 +179,7 @@ OPCODE opcodes[] = {
   { "end",   OT_END,    0x00  },
   { "push",  OT_PUSH,   0x00  },
   { "pop",   OT_POP,    0x00  },
+  { "mov",   OT_MOV,    0x00  },
   { "",      0,         0     },
   };
 
@@ -399,48 +401,6 @@ char* asm_convertNumber(char* buffer, dword* value, byte* success) {
   ishex = 0;
   val1 = 0;
   val2 = 0;
-/*
-  if (*buffer == 'r' || *buffer == 'R') {
-    if (*(buffer+1) == '0') {
-      *value = 0;
-      *success = 0xff;
-      return buffer+2;
-      }
-    if (*(buffer+1) >= '2' && *(buffer+1) <= '9') {
-      *value = *(buffer+1) - '0';
-      *success = 0xff;
-      return buffer+2;
-      }
-    if (*(buffer+1) >= 'a' && *(buffer+1) <= 'f') {
-      if (!(*(buffer+2) >= 'a' && *(buffer+2) <= 'z') &&
-          !(*(buffer+2) >= 'A' && *(buffer+2) <= 'Z')) {
-        *value = *(buffer+1) - 87;
-        *success = 0xff;
-        return buffer+2;
-        }
-      }
-    if (*(buffer+1) >= 'A' && *(buffer+1) <= 'F') {
-      if (!(*(buffer+2) >= 'a' && *(buffer+2) <= 'z') &&
-          !(*(buffer+2) >= 'A' && *(buffer+2) <= 'Z')) {
-        *value = *(buffer+1) - 55;
-        *success = 0xff;
-        return buffer+2;
-        }
-      }
-    if (*(buffer+1) == '1') {
-      if (*(buffer+2) >= '0' && *(buffer+2) <= '5') {
-        *value = *(buffer+2) - 38;
-        *success = 0xff;
-        return buffer+3;
-        }
-      else {
-        *value = *(buffer+1) - 55;
-        *success = 0xff;
-        return buffer+2;
-        }
-      }
-    }
-*/
   if (*buffer == '\'' && *(buffer+2) == '\'') {
     buffer++;
     *value = *buffer;
@@ -749,6 +709,7 @@ char* asm_evaluate(char* buffer,char useDefines) {
     else if (*buffer == '<' && *(buffer+1) == '>') { asm_add(OP_NE); buffer+=2; }
     else if (*buffer == '<') { asm_add(OP_LT); buffer++; }
     else if (*buffer == '>') { asm_add(OP_GT); buffer++; }
+    else if (*buffer == '=' && *(buffer+1) == '=') { asm_add(OP_EQ); buffer+=2; }
     else if (*buffer == '=') { asm_add(OP_EQ); buffer++; }
     else flag = 0;
     }
@@ -820,6 +781,7 @@ void Asm(char* line) {
   char *pargs;
   char  buffer[256];
   dword  value;
+  byte  reg;
   FILE* file;
   int   i;
   orig = line;
@@ -828,6 +790,10 @@ void Asm(char* line) {
     if (strncasecmp(line,".1805",5) == 0) { use1805 = 0xff; return; }
     if (strncasecmp(line,".list",5) == 0) { showList = 0xff; return; }
     if (strncasecmp(line,".sym",4) == 0) { showSymbols = 0xff; return; }
+    }
+  if (strncasecmp(line,"include ", 8) == 0) {
+    sprintf(buffer,"#%s",line);
+    strcpy(line,buffer);
     }
   if (numNests > 0) {
     if (strncasecmp(line,"#else",5) == 0 && nests[numNests-1] != 'I') {
@@ -1111,6 +1077,26 @@ void Asm(char* line) {
            output(PLO | value);
            output(LDX);
            output(PHI | value);
+           break;
+      case OT_MOV:
+           pargs = asm_evaluate(args,'N');
+           reg = (asm_numStack[0] & 0xf);
+           pargs = trim(pargs);
+           if (*pargs == ',') {
+             pargs++;
+             asm_evaluate(pargs,'N');
+             value = asm_numStack[0];
+             output(LDI);
+             output((value & 0xff00) >> 8);
+             output(PHI | reg);
+             output(LDI);
+             output(value & 0x00ff);
+             output(PLO | reg);
+             }
+           else {
+             printf("Invalid arguments for MOV\n");
+             errors++;
+             }
            break;
       default:
            printf("***ERROR: Unknown instruction type: %d\n",opcodes[pos].typ);
