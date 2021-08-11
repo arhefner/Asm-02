@@ -342,7 +342,7 @@ void writeOutput() {
     write(outFile, outLine, strlen(outLine));
     }
   if (outMode == 'B') {
-    write(outFile, outBuffer, outCount);
+//    write(outFile, outBuffer, outCount);
     }
   }
 
@@ -359,12 +359,19 @@ void output(byte value) {
     if (address > highest) highest = address;
     }
   if (passNumber == 2) {
-    outBuffer[outCount++] = value;
     codeGenerated++;
-    if (outCount == 16) {
-      writeOutput();
-      outCount = 0;
-      outAddress = address+1;
+    if (outMode == 'B') {
+      if (address < lowAddress) lowAddress = address;
+      if (address > highAddress) highAddress = address;
+      memory[address] = value;
+      }
+    else {
+      outBuffer[outCount++] = value;
+      if (outCount == 16) {
+        writeOutput();
+        outCount = 0;
+        outAddress = address+1;
+        }
       }
     if (createLst != 0 || showList != 0) {
       if (lstCount == 4) {
@@ -1229,12 +1236,16 @@ int pass(int p) {
   linesAssembled = 0;
   lineCount[0] = 0;
   numLineCount = 0;
+  lowAddress = 0xffff;
+  highAddress = 0x0000;
   inFile = fopen(sourceFile,"r");
   if (passNumber == 2) {
-    outFile = open(outName,O_CREAT|O_TRUNC|O_WRONLY|O_BINARY,0666);
-    if (outFile < 0) {
-      printf("Could not open output file: %s\n",outName);
-      exit(1);
+      if (outMode != 'B') {
+      outFile = open(outName,O_CREAT|O_TRUNC|O_WRONLY|O_BINARY,0666);
+      if (outFile < 0) {
+        printf("Could not open output file: %s\n",outName);
+        exit(1);
+        }
       }
     if (createLst) lstFile = fopen(lstName,"w");
     }
@@ -1245,7 +1256,7 @@ int pass(int p) {
     Asm(buffer);
     }
   if (passNumber == 2 && outCount > 0) writeOutput();
-  close(outFile);
+  if (passNumber == 2 && outMode != 'B') close(outFile);
   if (createLst) fclose(lstFile);
   if (numNests > 0) printf("#ifdef without #endif\n");
   for (i=0; i<numDefines; i++)
@@ -1329,7 +1340,16 @@ int main(int argc, char** argv) {
         addDefine(argv[i]+2,1,0);
         }
       }
-    pass(2);
+    i = pass(2);
+    if (outMode == 'B' && i == 0 && errors == 0) {
+      outFile = open(outName,O_CREAT|O_TRUNC|O_WRONLY|O_BINARY,0666);
+      if (outFile < 0) {
+        printf("Could not open output file: %s\n",outName);
+        exit(1);
+        }
+      write(outFile, memory+lowAddress, (highAddress-lowAddress) + 1);
+      close(outFile);
+      }
     }
   else printf("Errors during pass 1, aborting pass 2\n");
 
