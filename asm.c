@@ -377,21 +377,21 @@ void output(byte value) {
       if (lstCount == 4) {
         if (createLst) {
           fprintf(lstFile,"%s\n",sourceLine);
-          fprintf(lstFile,"      ");
+          fprintf(lstFile,"              ");
           }
         if (showList) {
           printf("%s\n",sourceLine);
-          printf("      ");
+          printf("              ");
           }
         }
       else if (lstCount > 4 && (lstCount % 4) == 0) {
         if (createLst) {
           fprintf(lstFile,"\n");
-          fprintf(lstFile,"      ");
+          fprintf(lstFile,"              ");
           }
         if (showList) {
           printf("\n");
-          printf("      ");
+          printf("              ");
           }
         }
       if (createLst) fprintf(lstFile,"%02x ",value);
@@ -1257,7 +1257,7 @@ int pass(int p) {
     }
   if (passNumber == 2 && outCount > 0) writeOutput();
   if (passNumber == 2 && outMode != 'B') close(outFile);
-  if (createLst) fclose(lstFile);
+  if (passNumber == 2 && createLst) fclose(lstFile);
   if (numNests > 0) printf("#ifdef without #endif\n");
   for (i=0; i<numDefines; i++)
     free(defines[i]);
