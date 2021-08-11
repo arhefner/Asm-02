@@ -44,8 +44,8 @@
 #define LDA      0x40
 #define STR      0x50
 #define IRX      0x60
-#define OUT      0x61
-#define INP      0x69
+#define OUT      0x60
+#define INP      0x68
 #define RET      0x70
 #define DIS      0x71
 #define LDXA     0x72
