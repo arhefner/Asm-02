@@ -18,4 +18,8 @@ clean:
 	-rm *.o
 	-rm $(PROJECT)
 
+install:
+	cp asm02 /usr/local/bin/
+	chmod a+rx /usr/local/bin/asm02
+
 asm.o:           header.h asm.c
