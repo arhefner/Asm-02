@@ -8,6 +8,8 @@ Command line switches:
   -b            - Output in binary
   -r            - Output in RCS hex
   -i            - Output in Intel hex
+  -l            - Show assembly list
+  -L            - Create .lst file
   -s            - Show symbols
   -melf         - Set Micro/Elf memory model
   -pev          - Set Pico/Elf memory model
