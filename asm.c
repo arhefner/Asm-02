@@ -631,7 +631,7 @@ char* asm_evaluate(char* buffer,char useDefines) {
     }
   while (*buffer != 0 && flag) {
 
-    while (*buffer == ' ') buffer++;
+    buffer = trim(buffer);
 
     func = -1;
     while (func) {
@@ -653,6 +653,8 @@ char* asm_evaluate(char* buffer,char useDefines) {
          func = -1;
          }
       }
+
+    buffer = trim(buffer);
 
     term = 0;
 
@@ -689,7 +691,8 @@ char* asm_evaluate(char* buffer,char useDefines) {
       }
 
     if (term == 0) {
-      printf("***ERROR: Expression error, invalid term: %s",buffer);
+      printf("[%d] ***ERROR: Expression error, invalid term: %s\n",
+        lineCount[numLineCount], buffer);
       errors++;
       return buffer;
       }
@@ -700,7 +703,8 @@ char* asm_evaluate(char* buffer,char useDefines) {
       while (asm_reduce(0)) ;
       buffer++;
       }
-    while (*buffer == ' ') buffer++;
+
+    buffer = trim(buffer);
 
     if (*buffer == '+') { asm_add(OP_ADD); buffer++; }
     else if (*buffer == '-') { asm_add(OP_SUB); buffer++; }
