@@ -470,23 +470,23 @@ int asm_reduce(char last) {
   int ret;
   if (asm_numTokens == 0) return 0;
   if (asm_tokens[asm_numTokens-1] != OP_NUM) return 0;
-  if (asm_numTokens > 2 && asm_tokens[asm_numTokens-3] >= 0x60) {
-    op   = asm_tokens[asm_numTokens-3];
-    asm_numTokens -= 3;
+  if (asm_numTokens > 1 && asm_tokens[asm_numTokens-2] >= 0x60) {
+    op   = asm_tokens[asm_numTokens-2];
+    asm_numTokens -= 2;
     ret = 0;
     if (last) ret = -1;
     }
-  else if (asm_numTokens > 2 && asm_tokens[asm_numTokens-3] == OP_OP) {
-    op   = asm_tokens[asm_numTokens-3];
-    asm_numTokens -= 3;
+  else if (asm_numTokens > 1 && asm_tokens[asm_numTokens-2] == OP_OP) {
+    op   = asm_tokens[asm_numTokens-2];
+    asm_numTokens -= 2;
     ret = 0;
     if (asm_numTokens > 0 && asm_tokens[asm_numTokens-1] >= 0x60) ret = -1;
     if (last) ret = -1;
     }
-  else if (asm_numTokens > 4 && asm_tokens[asm_numTokens-3] >= 0x10 &&
-                            asm_tokens[asm_numTokens-4] == OP_NUM) {
-    op   = asm_tokens[asm_numTokens-3];
-    asm_numTokens -= 5;
+  else if (asm_numTokens > 2 && asm_tokens[asm_numTokens-2] >= 0x10 &&
+                            asm_tokens[asm_numTokens-3] == OP_NUM) {
+    op   = asm_tokens[asm_numTokens-2];
+    asm_numTokens -= 3;
     ret = -1;
     }
   else {
@@ -592,7 +592,6 @@ int asm_reduce(char last) {
          asm_nstackSize--;
          break;
     }
-  asm_tokens[asm_numTokens++] = 0;
   asm_tokens[asm_numTokens++] = OP_NUM;
   return ret;
   }
@@ -600,7 +599,7 @@ int asm_reduce(char last) {
 void asm_add(int op) {
   if (asm_tokens[asm_numTokens-1] >= 0x10) {
     }
-  while (asm_numTokens > 4 && (op & 0xf0) <= (asm_tokens[asm_numTokens-3] & 0xf0)) {
+  while (asm_numTokens > 2 && (op & 0xf0) <= (asm_tokens[asm_numTokens-2] & 0xf0)) {
     asm_reduce(0);
     }
   asm_tokens[asm_numTokens++] = op;
@@ -623,7 +622,6 @@ char* asm_evaluate(char* buffer,char useDefines) {
   flag = 1;
   while (*buffer == ' ') buffer++;
   if (*buffer == '-' && (*(buffer+1) < '0' || *(buffer+1) > '9')) {
-    asm_tokens[asm_numTokens++] = 0;
     asm_tokens[asm_numTokens++] = OP_NUM;
     asm_tokens[asm_numTokens++] = OP_SUB;
     asm_numStack[asm_nstackSize++] = 0;
@@ -664,7 +662,6 @@ char* asm_evaluate(char* buffer,char useDefines) {
     buffer = asm_convertNumber(buffer, &number, &success);
     if (success != 0) {
       asm_numStack[asm_nstackSize++] = number;
-      asm_tokens[asm_numTokens++] = 0;
       asm_tokens[asm_numTokens++] = OP_NUM;
       term = -1;
       }
@@ -684,7 +681,6 @@ char* asm_evaluate(char* buffer,char useDefines) {
           asm_numStack[asm_nstackSize++] = getDefine(token);
         else
           asm_numStack[asm_nstackSize++] = getLabel(token);
-        asm_tokens[asm_numTokens++] = 0;
         asm_tokens[asm_numTokens++] = OP_NUM;
         term = -1;
         }
@@ -725,7 +721,7 @@ char* asm_evaluate(char* buffer,char useDefines) {
     else flag = 0;
     }
   while (asm_reduce(-1));
-  if (asm_numTokens != 2) {
+  if (asm_numTokens != 1) {
     printf("***ERROR: Expression error, expression does not reduce to 1 value\n");
     printf(">>> %s\n",origLine);
     printf(">>> %s\n",sourceLine);
