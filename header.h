@@ -138,9 +138,11 @@ LINK word   execAddr;
 LINK word   highest;
 LINK char   lineEnding[3];
 LINK int    linesAssembled;
+LINK int    lineCount[10];
 LINK word   listCount;
 LINK FILE  *lstFile;
 LINK char   lstName[64];
+LINK int    numLineCount;
 LINK word   outAddress;
 LINK byte   outBuffer[16];
 LINK byte   outCount;
@@ -158,6 +160,7 @@ LINK char   showSymbols;
 LINK char   sourceFile[64];
 LINK char   use1805;
 LINK byte   useAsm;
+LINK byte   useExtended;
 
 
 

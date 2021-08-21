@@ -918,12 +918,16 @@ void Asm(char* line) {
       printf("Could not open include file: %s\n",line);
       exit(1);
       }
+    numLineCount++;
+    lineCount[numLineCount] = 0;
     while (fgets(buffer, 256, file) != NULL) {
       while (strlen(buffer) > 0 && buffer[strlen(buffer)-1] < 32)
         buffer[strlen(buffer)-1] = 0;
+      lineCount[numLineCount]++;
       Asm(buffer);
       }
     fclose(file);
+    numLineCount--;
     return;
     }
 
@@ -972,8 +976,8 @@ void Asm(char* line) {
     addLabel(label, address);
     }
   if (strlen(opcode) > 0) {
-    if (passNumber == 2 && createLst != 0) fprintf(lstFile, "%04x: ",asmAddress);
-    if (passNumber == 2 && showList != 0) printf("%04x: ",asmAddress);
+    if (passNumber == 2 && createLst != 0) fprintf(lstFile, "[%5d] %04x: ",lineCount[numLineCount],asmAddress);
+    if (passNumber == 2 && showList != 0) printf("[%5d] %04x: ",lineCount[numLineCount],asmAddress);
     lstCount = 0;
     i = 0;
     pos = -1;
@@ -999,7 +1003,10 @@ void Asm(char* line) {
            output(opcodes[pos].byte1);
            value = processArgs(args);
            if (passNumber == 2 && (value & 0xff00) != (address & 0xff00)) {
-             printf("Short branch out of page\n");
+             if (numLineCount == 0)
+               printf("[%5d]: Short branch out of page\n",lineCount[numLineCount]);
+             else
+               printf("<%5d>: Short branch out of page\n",lineCount[numLineCount]);
              errors++;
              }
            output(value & 0xff);
@@ -1158,6 +1165,7 @@ void processOption(char* option) {
     if (strcmp(option,"-l") == 0) showList = -1;
     if (strcmp(option,"-L") == 0) createLst = -1;
     if (strcmp(option,"-s") == 0) showSymbols = -1;
+    if (strcmp(option,"-e") == 0) useExtended = -1;
     if (strcmp(option,"-lf") == 0) strcpy(lineEnding,"\n");
     if (strcmp(option,"-cr") == 0) strcpy(lineEnding,"\r");
     if (strcmp(option,"-crlf") == 0) strcpy(lineEnding,"\r\n");
@@ -1217,6 +1225,8 @@ int pass(int p) {
   outCount = 0;
   outAddress = 0;
   linesAssembled = 0;
+  lineCount[0] = 0;
+  numLineCount = 0;
   inFile = fopen(sourceFile,"r");
   if (passNumber == 2) {
     outFile = open(outName,O_CREAT|O_TRUNC|O_WRONLY|O_BINARY,0666);
@@ -1229,12 +1239,18 @@ int pass(int p) {
   while (fgets(buffer, 255, inFile) != NULL) {
     for (i=0; i<strlen(buffer); i++)
       if (buffer[i] < 32) buffer[i] = 0;
+    lineCount[numLineCount]++;
     Asm(buffer);
     }
   if (passNumber == 2 && outCount > 0) writeOutput();
   close(outFile);
   if (createLst) fclose(lstFile);
   if (numNests > 0) printf("#ifdef without #endif\n");
+
+printf("Defines:\n");
+for (i=0; i<numDefines; i++)
+printf("  %04x  %s\n",defineValues[i],defines[i]);
+
   for (i=0; i<numDefines; i++)
     free(defines[i]);
   if (numDefines > 0) {
@@ -1255,6 +1271,7 @@ int main(int argc, char** argv) {
   showList = 0;
   showSymbols = 0;
   use1805 = 0;
+  useExtended = 0;
   numDefines = 0;
   numLabels = 0;
   errors = 0;
@@ -1316,6 +1333,7 @@ int main(int argc, char** argv) {
     for (i=22; i<numLabels; i++)
       printf("  %04x  %s\n",labelValues[i],labels[i]);
     }
+
   return 0;
   }
 
