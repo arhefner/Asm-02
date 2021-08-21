@@ -33,6 +33,7 @@ typedef struct {
 #define OT_SBR    13
 #define OT_PUSH   14
 #define OT_POP    15
+#define OT_MOV    16
 
 #define OP_LOW    0x62
 #define OP_HIGH   0x61
@@ -178,6 +179,7 @@ OPCODE opcodes[] = {
   { "end",   OT_END,    0x00  },
   { "push",  OT_PUSH,   0x00  },
   { "pop",   OT_POP,    0x00  },
+  { "mov",   OT_MOV,    0x00  },
   { "",      0,         0     },
   };
 
@@ -276,11 +278,19 @@ void addLabel(char* label, word value) {
 
 word getLabel(char* label) {
   int i;
-  if (passNumber == 1) return 0;
+  if (passNumber == 1) {
+    for (i=0; i<numDefines; i++)
+      if (strcasecmp(label, defines[i]) == 0)
+        return defineValues[i];
+    return 0;
+    }
   for (i=0; i<numLabels; i++)
     if (strcasecmp(label, labels[i]) == 0) {
       return labelValues[i];
       }
+  for (i=0; i<numDefines; i++)
+    if (strcasecmp(label, defines[i]) == 0)
+      return defineValues[i];
   printf("***ERROR: Label not found: %s\n",label);
   errors++;
   return 0;
@@ -332,7 +342,7 @@ void writeOutput() {
     write(outFile, outLine, strlen(outLine));
     }
   if (outMode == 'B') {
-    write(outFile, outBuffer, outCount);
+//    write(outFile, outBuffer, outCount);
     }
   }
 
@@ -349,32 +359,39 @@ void output(byte value) {
     if (address > highest) highest = address;
     }
   if (passNumber == 2) {
-    outBuffer[outCount++] = value;
     codeGenerated++;
-    if (outCount == 16) {
-      writeOutput();
-      outCount = 0;
-      outAddress = address+1;
+    if (outMode == 'B') {
+      if (address < lowAddress) lowAddress = address;
+      if (address > highAddress) highAddress = address;
+      memory[address] = value;
+      }
+    else {
+      outBuffer[outCount++] = value;
+      if (outCount == 16) {
+        writeOutput();
+        outCount = 0;
+        outAddress = address+1;
+        }
       }
     if (createLst != 0 || showList != 0) {
       if (lstCount == 4) {
         if (createLst) {
           fprintf(lstFile,"%s\n",sourceLine);
-          fprintf(lstFile,"      ");
+          fprintf(lstFile,"              ");
           }
         if (showList) {
           printf("%s\n",sourceLine);
-          printf("      ");
+          printf("              ");
           }
         }
       else if (lstCount > 4 && (lstCount % 4) == 0) {
         if (createLst) {
           fprintf(lstFile,"\n");
-          fprintf(lstFile,"      ");
+          fprintf(lstFile,"              ");
           }
         if (showList) {
           printf("\n");
-          printf("      ");
+          printf("              ");
           }
         }
       if (createLst) fprintf(lstFile,"%02x ",value);
@@ -391,48 +408,6 @@ char* asm_convertNumber(char* buffer, dword* value, byte* success) {
   ishex = 0;
   val1 = 0;
   val2 = 0;
-/*
-  if (*buffer == 'r' || *buffer == 'R') {
-    if (*(buffer+1) == '0') {
-      *value = 0;
-      *success = 0xff;
-      return buffer+2;
-      }
-    if (*(buffer+1) >= '2' && *(buffer+1) <= '9') {
-      *value = *(buffer+1) - '0';
-      *success = 0xff;
-      return buffer+2;
-      }
-    if (*(buffer+1) >= 'a' && *(buffer+1) <= 'f') {
-      if (!(*(buffer+2) >= 'a' && *(buffer+2) <= 'z') &&
-          !(*(buffer+2) >= 'A' && *(buffer+2) <= 'Z')) {
-        *value = *(buffer+1) - 87;
-        *success = 0xff;
-        return buffer+2;
-        }
-      }
-    if (*(buffer+1) >= 'A' && *(buffer+1) <= 'F') {
-      if (!(*(buffer+2) >= 'a' && *(buffer+2) <= 'z') &&
-          !(*(buffer+2) >= 'A' && *(buffer+2) <= 'Z')) {
-        *value = *(buffer+1) - 55;
-        *success = 0xff;
-        return buffer+2;
-        }
-      }
-    if (*(buffer+1) == '1') {
-      if (*(buffer+2) >= '0' && *(buffer+2) <= '5') {
-        *value = *(buffer+2) - 38;
-        *success = 0xff;
-        return buffer+3;
-        }
-      else {
-        *value = *(buffer+1) - 55;
-        *success = 0xff;
-        return buffer+2;
-        }
-      }
-    }
-*/
   if (*buffer == '\'' && *(buffer+2) == '\'') {
     buffer++;
     *value = *buffer;
@@ -495,23 +470,23 @@ int asm_reduce(char last) {
   int ret;
   if (asm_numTokens == 0) return 0;
   if (asm_tokens[asm_numTokens-1] != OP_NUM) return 0;
-  if (asm_numTokens > 2 && asm_tokens[asm_numTokens-3] >= 0x60) {
-    op   = asm_tokens[asm_numTokens-3];
-    asm_numTokens -= 3;
+  if (asm_numTokens > 1 && asm_tokens[asm_numTokens-2] >= 0x60) {
+    op   = asm_tokens[asm_numTokens-2];
+    asm_numTokens -= 2;
     ret = 0;
     if (last) ret = -1;
     }
-  else if (asm_numTokens > 2 && asm_tokens[asm_numTokens-3] == OP_OP) {
-    op   = asm_tokens[asm_numTokens-3];
-    asm_numTokens -= 3;
+  else if (asm_numTokens > 1 && asm_tokens[asm_numTokens-2] == OP_OP) {
+    op   = asm_tokens[asm_numTokens-2];
+    asm_numTokens -= 2;
     ret = 0;
     if (asm_numTokens > 0 && asm_tokens[asm_numTokens-1] >= 0x60) ret = -1;
     if (last) ret = -1;
     }
-  else if (asm_numTokens > 4 && asm_tokens[asm_numTokens-3] >= 0x10 &&
-                            asm_tokens[asm_numTokens-4] == OP_NUM) {
-    op   = asm_tokens[asm_numTokens-3];
-    asm_numTokens -= 5;
+  else if (asm_numTokens > 2 && asm_tokens[asm_numTokens-2] >= 0x10 &&
+                            asm_tokens[asm_numTokens-3] == OP_NUM) {
+    op   = asm_tokens[asm_numTokens-2];
+    asm_numTokens -= 3;
     ret = -1;
     }
   else {
@@ -617,7 +592,6 @@ int asm_reduce(char last) {
          asm_nstackSize--;
          break;
     }
-  asm_tokens[asm_numTokens++] = 0;
   asm_tokens[asm_numTokens++] = OP_NUM;
   return ret;
   }
@@ -625,7 +599,7 @@ int asm_reduce(char last) {
 void asm_add(int op) {
   if (asm_tokens[asm_numTokens-1] >= 0x10) {
     }
-  while (asm_numTokens > 4 && (op & 0xf0) <= (asm_tokens[asm_numTokens-3] & 0xf0)) {
+  while (asm_numTokens > 2 && (op & 0xf0) <= (asm_tokens[asm_numTokens-2] & 0xf0)) {
     asm_reduce(0);
     }
   asm_tokens[asm_numTokens++] = op;
@@ -640,13 +614,14 @@ char* asm_evaluate(char* buffer,char useDefines) {
   int parens;
   byte success;
   dword number;
+  char* origLine;
+  origLine = buffer;
   parens = 0;
   asm_numTokens = 0;
   asm_nstackSize = 0;
   flag = 1;
   while (*buffer == ' ') buffer++;
   if (*buffer == '-' && (*(buffer+1) < '0' || *(buffer+1) > '9')) {
-    asm_tokens[asm_numTokens++] = 0;
     asm_tokens[asm_numTokens++] = OP_NUM;
     asm_tokens[asm_numTokens++] = OP_SUB;
     asm_numStack[asm_nstackSize++] = 0;
@@ -654,7 +629,7 @@ char* asm_evaluate(char* buffer,char useDefines) {
     }
   while (*buffer != 0 && flag) {
 
-    while (*buffer == ' ') buffer++;
+    buffer = trim(buffer);
 
     func = -1;
     while (func) {
@@ -677,6 +652,8 @@ char* asm_evaluate(char* buffer,char useDefines) {
          }
       }
 
+    buffer = trim(buffer);
+
     term = 0;
 
     /* **************************** */
@@ -685,7 +662,6 @@ char* asm_evaluate(char* buffer,char useDefines) {
     buffer = asm_convertNumber(buffer, &number, &success);
     if (success != 0) {
       asm_numStack[asm_nstackSize++] = number;
-      asm_tokens[asm_numTokens++] = 0;
       asm_tokens[asm_numTokens++] = OP_NUM;
       term = -1;
       }
@@ -705,14 +681,14 @@ char* asm_evaluate(char* buffer,char useDefines) {
           asm_numStack[asm_nstackSize++] = getDefine(token);
         else
           asm_numStack[asm_nstackSize++] = getLabel(token);
-        asm_tokens[asm_numTokens++] = 0;
         asm_tokens[asm_numTokens++] = OP_NUM;
         term = -1;
         }
       }
 
     if (term == 0) {
-      printf("***ERROR: Expression error, invalid term: %s",buffer);
+      printf("[%d] ***ERROR: Expression error, invalid term: %s\n",
+        lineCount[numLineCount], buffer);
       errors++;
       return buffer;
       }
@@ -723,7 +699,8 @@ char* asm_evaluate(char* buffer,char useDefines) {
       while (asm_reduce(0)) ;
       buffer++;
       }
-    while (*buffer == ' ') buffer++;
+
+    buffer = trim(buffer);
 
     if (*buffer == '+') { asm_add(OP_ADD); buffer++; }
     else if (*buffer == '-') { asm_add(OP_SUB); buffer++; }
@@ -739,12 +716,15 @@ char* asm_evaluate(char* buffer,char useDefines) {
     else if (*buffer == '<' && *(buffer+1) == '>') { asm_add(OP_NE); buffer+=2; }
     else if (*buffer == '<') { asm_add(OP_LT); buffer++; }
     else if (*buffer == '>') { asm_add(OP_GT); buffer++; }
+    else if (*buffer == '=' && *(buffer+1) == '=') { asm_add(OP_EQ); buffer+=2; }
     else if (*buffer == '=') { asm_add(OP_EQ); buffer++; }
     else flag = 0;
     }
   while (asm_reduce(-1));
-  if (asm_numTokens != 2) {
+  if (asm_numTokens != 1) {
     printf("***ERROR: Expression error, expression does not reduce to 1 value\n");
+    printf(">>> %s\n",origLine);
+    printf(">>> %s\n",sourceLine);
     errors++;
     }
   return buffer;
@@ -790,10 +770,13 @@ void processDb(char* args,char typ) {
 
 void processDs(word arg) {
   address += arg;
+  if (passNumber == 2 && outCount > 0) writeOutput();
+  outCount = 0;
   }
 
 void processOrg(word arg) {
   if (passNumber == 2 && outCount > 0) writeOutput();
+  outCount = 0;
   address = arg;
   outAddress = address;
   }
@@ -808,6 +791,7 @@ void Asm(char* line) {
   char *pargs;
   char  buffer[256];
   dword  value;
+  byte  reg;
   FILE* file;
   int   i;
   orig = line;
@@ -816,6 +800,10 @@ void Asm(char* line) {
     if (strncasecmp(line,".1805",5) == 0) { use1805 = 0xff; return; }
     if (strncasecmp(line,".list",5) == 0) { showList = 0xff; return; }
     if (strncasecmp(line,".sym",4) == 0) { showSymbols = 0xff; return; }
+    }
+  if (strncasecmp(line,"include ", 8) == 0) {
+    sprintf(buffer,"#%s",line);
+    strcpy(line,buffer);
     }
   if (numNests > 0) {
     if (strncasecmp(line,"#else",5) == 0 && nests[numNests-1] != 'I') {
@@ -863,8 +851,8 @@ void Asm(char* line) {
       while (*line != 0 && *line > ' ') label[pos++] = *line++;
       label[pos] = 0;
       line = trim(line);
-      i = atoi(line);
-      if (i == 0) i = 1;
+      if (*line != 0) i = processArgs(line);
+        else i = 1;
       addDefine(label, i, 0);
       return;
       }
@@ -1021,6 +1009,7 @@ void Asm(char* line) {
            processDs(processArgs(args));
            break;
       case OT_ORG:
+           value = processArgs(args);
            processOrg(processArgs(args));
            break;
       case OT_EQU:
@@ -1098,6 +1087,26 @@ void Asm(char* line) {
            output(PLO | value);
            output(LDX);
            output(PHI | value);
+           break;
+      case OT_MOV:
+           pargs = asm_evaluate(args,'N');
+           reg = (asm_numStack[0] & 0xf);
+           pargs = trim(pargs);
+           if (*pargs == ',') {
+             pargs++;
+             asm_evaluate(pargs,'N');
+             value = asm_numStack[0];
+             output(LDI);
+             output((value & 0xff00) >> 8);
+             output(PHI | reg);
+             output(LDI);
+             output(value & 0x00ff);
+             output(PLO | reg);
+             }
+           else {
+             printf("Invalid arguments for MOV\n");
+             errors++;
+             }
            break;
       default:
            printf("***ERROR: Unknown instruction type: %d\n",opcodes[pos].typ);
@@ -1227,12 +1236,16 @@ int pass(int p) {
   linesAssembled = 0;
   lineCount[0] = 0;
   numLineCount = 0;
+  lowAddress = 0xffff;
+  highAddress = 0x0000;
   inFile = fopen(sourceFile,"r");
   if (passNumber == 2) {
-    outFile = open(outName,O_CREAT|O_TRUNC|O_WRONLY|O_BINARY,0666);
-    if (outFile < 0) {
-      printf("Could not open output file: %s\n",outName);
-      exit(1);
+      if (outMode != 'B') {
+      outFile = open(outName,O_CREAT|O_TRUNC|O_WRONLY|O_BINARY,0666);
+      if (outFile < 0) {
+        printf("Could not open output file: %s\n",outName);
+        exit(1);
+        }
       }
     if (createLst) lstFile = fopen(lstName,"w");
     }
@@ -1243,8 +1256,8 @@ int pass(int p) {
     Asm(buffer);
     }
   if (passNumber == 2 && outCount > 0) writeOutput();
-  close(outFile);
-  if (createLst) fclose(lstFile);
+  if (passNumber == 2 && outMode != 'B') close(outFile);
+  if (passNumber == 2 && createLst) fclose(lstFile);
   if (numNests > 0) printf("#ifdef without #endif\n");
 
 printf("Defines:\n");
@@ -1318,9 +1331,32 @@ int main(int argc, char** argv) {
   addLabel("rd",13);
   addLabel("re",14);
   addLabel("rf",15);
+
+  for (i=0; i<argc; i++) {
+    if (strncmp(argv[i],"-D",2) == 0) {
+      addDefine(argv[i]+2,1,0);
+      }
+    }
   i = pass(1);
   numDefines = 0;
-  if (i == 0 && errors == 0) pass(2);
+  if (i == 0 && errors == 0) {
+    for (i=0; i<argc; i++) {
+      if (strncmp(argv[i],"-D",2) == 0) {
+        addDefine(argv[i]+2,1,0);
+        }
+      }
+    i = pass(2);
+    if (outMode == 'B' && i == 0 && errors == 0) {
+      outFile = open(outName,O_CREAT|O_TRUNC|O_WRONLY|O_BINARY,0666);
+      if (outFile < 0) {
+        printf("Could not open output file: %s\n",outName);
+        exit(1);
+        }
+      write(outFile, memory+lowAddress, (highAddress-lowAddress) + 1);
+      close(outFile);
+      }
+    }
+  else printf("Errors during pass 1, aborting pass 2\n");
 
   printf("\n");
   printf("Lines Assembled   : %d\n",linesAssembled);

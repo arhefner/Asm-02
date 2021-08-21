@@ -5,9 +5,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
-#include <unistd.h>
 
+#if defined(_WIN32) || defined(_WIN64)
+#include <io.h>
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
+#else
+#include <unistd.h>
 #define O_BINARY 0
+#endif
+
 #ifdef MAIN
 #define LINK
 #else
@@ -37,8 +44,8 @@
 #define LDA      0x40
 #define STR      0x50
 #define IRX      0x60
-#define OUT      0x61
-#define INP      0x69
+#define OUT      0x60
+#define INP      0x68
 #define RET      0x70
 #define DIS      0x71
 #define LDXA     0x72
@@ -136,12 +143,15 @@ LINK char   createLst;
 LINK int    errors;
 LINK word   execAddr;
 LINK word   highest;
+LINK word   highAddress;
 LINK char   lineEnding[3];
 LINK int    linesAssembled;
 LINK int    lineCount[10];
 LINK word   listCount;
+LINK word   lowAddress;
 LINK FILE  *lstFile;
 LINK char   lstName[64];
+LINK byte   memory[65536];
 LINK int    numLineCount;
 LINK word   outAddress;
 LINK byte   outBuffer[16];
@@ -166,4 +176,3 @@ LINK byte   useExtended;
 
 
 #endif
-
