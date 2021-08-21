@@ -522,6 +522,7 @@ int asm_reduce(char last) {
              asm_numStack[asm_nstackSize-2] /
              asm_numStack[asm_nstackSize-1];
          asm_nstackSize--;
+         break;
     case OP_MOD:
          asm_numStack[asm_nstackSize-2] =
              asm_numStack[asm_nstackSize-2] %
