@@ -282,6 +282,9 @@ word getLabel(char* label) {
     for (i=0; i<numDefines; i++)
       if (strcasecmp(label, defines[i]) == 0)
         return defineValues[i];
+    for (i=0; i<numLabels; i++)
+      if (strcasecmp(label, labels[i]) == 0)
+        return labelValues[i];
     return 0;
     }
   for (i=0; i<numLabels; i++)
@@ -1259,10 +1262,6 @@ int pass(int p) {
   if (passNumber == 2 && outMode != 'B') close(outFile);
   if (passNumber == 2 && createLst) fclose(lstFile);
   if (numNests > 0) printf("#ifdef without #endif\n");
-
-printf("Defines:\n");
-for (i=0; i<numDefines; i++)
-printf("  %04x  %s\n",defineValues[i],defines[i]);
 
   for (i=0; i<numDefines; i++)
     free(defines[i]);
