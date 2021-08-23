@@ -407,10 +407,12 @@ void output(byte value) {
 
 char* asm_convertNumber(char* buffer, dword* value, byte* success) {
   byte ishex;
+  byte neg;
   dword val1,val2;
   ishex = 0;
   val1 = 0;
   val2 = 0;
+  neg = 0;
   if (*buffer == '\'' && *(buffer+2) == '\'') {
     buffer++;
     *value = *buffer;
@@ -441,6 +443,10 @@ char* asm_convertNumber(char* buffer, dword* value, byte* success) {
       return buffer;
       }
     }
+  if (*buffer == '-' && *(buffer+1) >= '0' && *(buffer+1) <= '9') {
+    neg = 0xff;
+    buffer++;
+    }
   if (ishex == 0 && (*buffer < '0' || *buffer > '9')) {
     *success = 0;
     return buffer;
@@ -461,6 +467,10 @@ char* asm_convertNumber(char* buffer, dword* value, byte* success) {
   if (*buffer == 'h' || *buffer == 'H') {
     ishex = 0xff;
     buffer++;
+    }
+  if (neg != 0) {
+    val1 = (val1 ^ 0xffff) + 1;
+    val2 = (val2 ^ 0xffff) + 1;
     }
   *success = 0xff;
   *value = (ishex != 0) ? val2 : val1;
@@ -625,12 +635,6 @@ char* asm_evaluate(char* buffer,char useDefines) {
   asm_nstackSize = 0;
   flag = 1;
   while (*buffer == ' ') buffer++;
-  if (*buffer == '-' && (*(buffer+1) < '0' || *(buffer+1) > '9')) {
-    asm_tokens[asm_numTokens++] = OP_NUM;
-    asm_tokens[asm_numTokens++] = OP_SUB;
-    asm_numStack[asm_nstackSize++] = 0;
-    buffer++;
-    }
   while (*buffer != 0 && flag) {
 
     buffer = trim(buffer);
