@@ -987,8 +987,13 @@ void Asm(char* line) {
       return;
       }
     linesAssembled++;
+    while (*args != 0 && args[strlen(args)-1] <= ' ')
+      args[strlen(args)-1] = 0;
     switch (opcodes[pos].typ) {
       case OT_0ARG:
+           if (strlen(args) > 0 && passNumber == 2) {
+             printf("WARNING: %s does not take operands\n",opcodes[pos].opcode);
+             }
            output(opcodes[pos].byte1);
            break;
       case OT_1ARG:
