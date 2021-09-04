@@ -34,6 +34,8 @@ typedef struct {
 #define OT_PUSH   14
 #define OT_POP    15
 #define OT_MOV    16
+#define OT_CALL   17
+#define OT_RTN    18
 
 #define OP_LOW    0x62
 #define OP_HIGH   0x61
@@ -180,6 +182,8 @@ OPCODE opcodes[] = {
   { "push",  OT_PUSH,   0x00  },
   { "pop",   OT_POP,    0x00  },
   { "mov",   OT_MOV,    0x00  },
+  { "call",  OT_CALL,   0x00  },
+  { "rtn",   OT_0ARG,   0xd5  },
   { "",      0,         0     },
   };
 
@@ -1102,20 +1106,39 @@ void Asm(char* line) {
            output(LDX);
            output(PHI | value);
            break;
+      case OT_RTN:
+           output(SEP + 5);
+           break;
+      case OT_CALL:
+           value = processArgs(args);
+           output(SEP + 4);
+           output(value / 256);
+           output(value % 256);
+           break;
       case OT_MOV:
            pargs = asm_evaluate(args,'N');
            reg = (asm_numStack[0] & 0xf);
            pargs = trim(pargs);
            if (*pargs == ',') {
              pargs++;
-             asm_evaluate(pargs,'N');
-             value = asm_numStack[0];
-             output(LDI);
-             output((value & 0xff00) >> 8);
-             output(PHI | reg);
-             output(LDI);
-             output(value & 0x00ff);
-             output(PLO | reg);
+             if (*pargs == 'r' || *pargs == 'R') {
+                asm_evaluate(pargs,'N');
+                value = asm_numStack[0] & 0xf;
+                output(GHI + value);
+                output(PHI + reg);
+                output(GLO + value);
+                output(PLO + reg);
+                }
+             else {
+               asm_evaluate(pargs,'N');
+               value = asm_numStack[0];
+               output(LDI);
+               output((value & 0xff00) >> 8);
+               output(PHI | reg);
+               output(LDI);
+               output(value & 0x00ff);
+               output(PLO | reg);
+               }
              }
            else {
              printf("Invalid arguments for MOV\n");
