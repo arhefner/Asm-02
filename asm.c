@@ -195,12 +195,21 @@ char* trim(char* line) {
   return line;
   }
 
-void addDefine(char* define, int value, int redefine) {
+int isAlpha(char c) {
+  if (c >= 'a' && c <= 'z') return -1;
+  if (c >= 'A' && c <= 'Z') return -1;
+  if (c >= '0' && c <= '9') return -1;
+  return 0;
+  }
+
+void addDefine(char* define, char* value, int redefine) {
   int i;
   for (i=0; i<numDefines; i++)
     if (strcasecmp(define, defines[i]) == 0) {
       if (redefine) {
-        defineValues[i] = value;
+        free(defineValues[i]);
+        defineValues[i] = (char*)malloc(strlen(value)+1);
+        strcpy(defineValues[i], value);
         return;
         }
       printf("***ERROR: Duplicate define: %s\n",define);
@@ -210,18 +219,19 @@ void addDefine(char* define, int value, int redefine) {
   numDefines++;
   if (numDefines == 1) {
     defines = (char**)malloc(sizeof(char*));
-    defineValues = (int*)malloc(sizeof(int));
+    defineValues = (char**)malloc(sizeof(char*));
     }
   else {
     defines = (char**)realloc(defines, sizeof(char*) * numDefines);
-    defineValues = (int*)realloc(defineValues, sizeof(int) * numDefines);
+    defineValues = (char**)realloc(defineValues, sizeof(char*) * numDefines);
     }
   defines[numDefines-1] = (char*)malloc(strlen(define) + 1);
   strcpy(defines[numDefines-1], define);
-  defineValues[numDefines-1] = value;
+  defineValues[numDefines-1] = (char*)malloc(strlen(value) + 1);
+  strcpy(defineValues[numDefines-1], value);
   }
 
-int getDefine(char* define) {
+char* getDefine(char* define) {
   int i;
   for (i=0; i<numDefines; i++)
     if (strcasecmp(define, defines[i]) == 0) {
@@ -238,6 +248,7 @@ void delDefine(char* define) {
     if (strcasecmp(define, defines[i]) == 0) pos = i;
   if (pos < 0) return;
   free(defines[pos]);
+  free(defineValues[pos]);
   for (i=pos; i<numDefines-1; i++) {
     defines[i] = defines[i+1];
     defineValues[i] = defineValues[i+1];
@@ -249,7 +260,7 @@ void delDefine(char* define) {
     }
   else {
     defines = (char**)realloc(defines, sizeof(char*) * numDefines);
-    defineValues = (int*)realloc(defineValues, sizeof(int) * numDefines);
+    defineValues = (char**)realloc(defineValues, sizeof(char*) * numDefines);
     }
   }
 
@@ -279,9 +290,6 @@ void addLabel(char* label, word value) {
 word getLabel(char* label) {
   int i;
   if (passNumber == 1) {
-    for (i=0; i<numDefines; i++)
-      if (strcasecmp(label, defines[i]) == 0)
-        return defineValues[i];
     for (i=0; i<numLabels; i++)
       if (strcasecmp(label, labels[i]) == 0)
         return labelValues[i];
@@ -291,9 +299,6 @@ word getLabel(char* label) {
     if (strcasecmp(label, labels[i]) == 0) {
       return labelValues[i];
       }
-  for (i=0; i<numDefines; i++)
-    if (strcasecmp(label, defines[i]) == 0)
-      return defineValues[i];
   printf("***ERROR: Label not found: %s\n",label);
   errors++;
   return 0;
@@ -685,10 +690,7 @@ char* asm_evaluate(char* buffer,char useDefines) {
           token[p++] = *buffer++;
           }
         token[p] = 0;
-        if (useDefines == 'Y')
-          asm_numStack[asm_nstackSize++] = getDefine(token);
-        else
-          asm_numStack[asm_nstackSize++] = getLabel(token);
+        asm_numStack[asm_nstackSize++] = getLabel(token);
         asm_tokens[asm_numTokens++] = OP_NUM;
         term = -1;
         }
@@ -859,9 +861,8 @@ void Asm(char* line) {
       while (*line != 0 && *line > ' ') label[pos++] = *line++;
       label[pos] = 0;
       line = trim(line);
-      if (*line != 0) i = processArgs(line);
-        else i = 1;
-      addDefine(label, i, 0);
+      if (*line != 0) addDefine(label, line, 0);
+        else addDefine(label, "1", 0);
       return;
       }
     if (strncasecmp(line,"#undef",6) == 0) {
@@ -882,7 +883,7 @@ void Asm(char* line) {
       pos = 0;
       while (*line != 0 && *line > ' ') label[pos++] = *line++;
       label[pos] = 0;
-      if (getDefine(label)) {
+      if (atoi(label) > 0) {
         nests[numNests++] = 'Y';
         }
       else {
@@ -896,7 +897,7 @@ void Asm(char* line) {
       pos = 0;
       while (*line != 0 && *line > ' ') label[pos++] = *line++;
       label[pos] = 0;
-      if (getDefine(label)) {
+      if (atoi(label) != 0) {
         nests[numNests++] = 'N';
         }
       else {
@@ -1241,6 +1242,8 @@ void processOption(char* option) {
 int pass(int p) {
   int i;
   char buffer[256];
+  char rest[256];
+  char *pos;
   FILE* inFile;
   passNumber = p;
   address = 0;
@@ -1265,6 +1268,17 @@ int pass(int p) {
   while (fgets(buffer, 255, inFile) != NULL) {
     for (i=0; i<strlen(buffer); i++)
       if (buffer[i] < 32) buffer[i] = 0;
+    for (i=0; i<numDefines; i++) {
+      while ((pos = strstr(buffer,defines[i])) != NULL) {
+        if (isAlpha(*(pos-1)) == 0 &&
+            isAlpha(*(pos+strlen(defines[i]))) == 0) {
+          strcpy(rest,pos+strlen(defines[i]));
+          *pos = 0;
+          strcat(buffer, defineValues[i]);
+          strcat(buffer, rest);
+          }
+        }
+      }
     lineCount[numLineCount]++;
     Asm(buffer);
     }
@@ -1343,7 +1357,7 @@ int main(int argc, char** argv) {
 
   for (i=0; i<argc; i++) {
     if (strncmp(argv[i],"-D",2) == 0) {
-      addDefine(argv[i]+2,1,0);
+      addDefine(argv[i]+2,"1",0);
       }
     }
   i = pass(1);
@@ -1351,7 +1365,7 @@ int main(int argc, char** argv) {
   if (i == 0 && errors == 0) {
     for (i=0; i<argc; i++) {
       if (strncmp(argv[i],"-D",2) == 0) {
-        addDefine(argv[i]+2,1,0);
+        addDefine(argv[i]+2,"1",0);
         }
       }
     i = pass(2);

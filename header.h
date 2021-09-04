@@ -123,7 +123,7 @@ typedef unsigned short word;
 typedef unsigned int   dword;
 
 LINK char** defines;
-LINK int*   defineValues;
+LINK char** defineValues;
 LINK int    numDefines;
 LINK char** labels;
 LINK word*  labelValues;
