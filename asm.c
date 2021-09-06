@@ -917,6 +917,7 @@ void Asm(char* line) {
   int   pos;
   char  qt;
   char *orig;
+  char *def;
   char  label[32];
   char  opcode[32];
   char  args[128];
@@ -1015,7 +1016,8 @@ void Asm(char* line) {
       pos = 0;
       while (*line != 0 && *line > ' ') label[pos++] = *line++;
       label[pos] = 0;
-      if (atoi(label) > 0) {
+      def = getDefine(label);
+      if (def != 0) {
         nests[numNests++] = 'Y';
         }
       else {
@@ -1029,7 +1031,8 @@ void Asm(char* line) {
       pos = 0;
       while (*line != 0 && *line > ' ') label[pos++] = *line++;
       label[pos] = 0;
-      if (atoi(label) != 0 || strlen(label) > 1) {
+      def = getDefine(label);
+      if (def != 0) {
         nests[numNests++] = 'N';
         }
       else {
@@ -1442,6 +1445,14 @@ int pass(int p) {
     for (i=0; i<numDefines; i++) {
       pos = buffer;
       if (strncasecmp(buffer,"#define ",8) == 0) {
+        pos += 8;
+        while (*pos != 0 && *pos != ' ') pos++;
+        }
+      if (strncasecmp(buffer,"#ifdef ",7) == 0) {
+        pos += 7;
+        while (*pos != 0 && *pos != ' ') pos++;
+        }
+      if (strncasecmp(buffer,"#ifndef ",8) == 0) {
         pos += 8;
         while (*pos != 0 && *pos != ' ') pos++;
         }
