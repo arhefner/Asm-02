@@ -131,6 +131,10 @@ LINK int    numLabels;
 LINK word   asmAddress;
 LINK char   nests[10];
 LINK int    numNests;
+LINK char** ops;
+LINK char** arglist;
+LINK char** translation;
+LINK int    numOps;
 
 LINK word   address;
 LINK int    asmFile;

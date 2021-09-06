@@ -31,11 +31,7 @@ typedef struct {
 #define OT_682ARG 11
 #define OT_END    12
 #define OT_SBR    13
-#define OT_PUSH   14
-#define OT_POP    15
-#define OT_MOV    16
-#define OT_CALL   17
-#define OT_RTN    18
+#define OT_MACRO  19
 
 #define OP_LOW    0x62
 #define OP_HIGH   0x61
@@ -179,11 +175,6 @@ OPCODE opcodes[] = {
   { "scal",  OT_682ARG, 0x80  },
   { "sret",  OT_680ARG, 0x90  },
   { "end",   OT_END,    0x00  },
-  { "push",  OT_PUSH,   0x00  },
-  { "pop",   OT_POP,    0x00  },
-  { "mov",   OT_MOV,    0x00  },
-  { "call",  OT_CALL,   0x00  },
-  { "rtn",   OT_0ARG,   0xd5  },
   { "",      0,         0     },
   };
 
@@ -203,6 +194,35 @@ int isAlpha(char c) {
   if (c >= 'a' && c <= 'z') return -1;
   if (c >= 'A' && c <= 'Z') return -1;
   if (c >= '0' && c <= '9') return -1;
+  return 0;
+  }
+
+int isRReg(char* line) {
+  if (*line != 'r' && *line != 'R') return 0;
+  line++;
+  if ((*line >= '2' && *line <= '9') ||
+      (*line >= 'a' && *line <= 'f') ||
+      (*line >= 'A' && *line <= 'F')) {
+    line++;
+    if (*line >= '0' && *line <= '9') return 0;
+    if (*line >= 'a' && *line <= 'z') return 0;
+    if (*line >= 'A' && *line <= 'Z') return 0;
+    return -1;
+    }
+  if (*line == '1') {
+    line++;
+    if (*line >= '0' && *line <= '5') {
+      line++;
+      if (*line >= '0' && *line <= '9') return 0;
+      if (*line >= 'a' && *line <= 'z') return 0;
+      if (*line >= 'A' && *line <= 'Z') return 0;
+      return -1;
+      }
+    if (*line >= '0' && *line <= '9') return 0;
+    if (*line >= 'a' && *line <= 'z') return 0;
+    if (*line >= 'A' && *line <= 'Z') return 0;
+    return -1;
+    }
   return 0;
   }
 
@@ -795,6 +815,104 @@ void processOrg(word arg) {
   outAddress = address;
   }
 
+void compileOp(char* line) {
+  char op[32];
+  char args[32];
+  char trans[1024];
+  char *oline;
+  int  pos;
+  oline = line;
+  line = trim(line);
+  if (*line != '"') {
+    printf("Invalid .op format: %s\n",oline);
+    exit(1);
+    }
+  line++;
+  line = trim(line);
+  pos = 0;
+  while (*line != '"' && *line != 0) {
+    if ((*line >= 'a' && *line <= 'z') ||
+        (*line >= 'A' && *line <= 'Z') ||
+        (*line >= '0' && *line <= '9') ||
+         *line == '_') {
+      op[pos++] = *line++;
+      }
+    else {
+      printf("Invalid character in opcode name: %s\n",oline);
+      exit(1);
+      }
+    }
+  op[pos] = 0;
+  if (*line != '"') {
+    printf("Invalid .op format: %s\n",oline);
+    exit(1);
+    }
+  line++;
+  line = trim(line);
+  if (*line != ',') {
+    printf("Invalid .op format: %s\n",oline);
+    exit(1);
+    }
+  line++;
+  line = trim(line);
+  if (*line != '"') {
+    printf("Invalid .op format: %s\n",oline);
+    exit(1);
+    }
+  line++;
+  pos = 0;
+  while (*line == 'n' || *line == 'N' ||
+         *line == 'b' || *line == 'B' ||
+         *line == 'w' || *line == 'W' ||
+         *line == 'r' || *line == 'R') {
+    args[pos++] = *line++;
+    }
+  args[pos] = 0;
+  if (*line != '"') {
+    printf("Invalid .op format: %s\n",oline);
+    exit(1);
+    }
+  line++;
+  line = trim(line);
+  if (*line != ',') {
+    printf("Invalid .op format: %s\n",oline);
+    exit(1);
+    }
+  line++;
+  line = trim(line);
+  if (*line != '"') {
+    printf("Invalid .op format: %s\n",oline);
+    exit(1);
+    }
+  line++;
+  pos = 0;
+  while (*line != '"' && *line != 0) {
+    trans[pos++] = *line++;
+    }
+  trans[pos] = 0;
+  if (*line != '"') {
+    printf("Invalid .op format: %s\n",oline);
+    exit(1);
+    }
+  numOps++;
+  if (numOps == 1) {
+    ops = (char**)malloc(sizeof(char*));
+    arglist = (char**)malloc(sizeof(char*));
+    translation = (char**)malloc(sizeof(char*));
+    }
+  else {
+    ops = (char**)realloc(ops, sizeof(char*) * numOps);
+    arglist = (char**)realloc(arglist, sizeof(char*) * numOps);
+    translation = (char**)realloc(translation, sizeof(char*) * numOps);
+    }
+  ops[numOps-1] = (char*)malloc(strlen(op) + 1);
+  strcpy(ops[numOps-1], op);
+  arglist[numOps-1] = (char*)malloc(strlen(args) + 1);
+  strcpy(arglist[numOps-1], args);
+  translation[numOps-1] = (char*)malloc(strlen(trans) + 1);
+  strcpy(translation[numOps-1], trans);
+  }
+
 void Asm(char* line) {
   int   pos;
   char  qt;
@@ -802,18 +920,28 @@ void Asm(char* line) {
   char  label[32];
   char  opcode[32];
   char  args[128];
+  word  operands[32];
+  byte  isreg[32];
+  char  *opline;
+  int   opcount;
   char *pargs;
   char  buffer[256];
   dword  value;
+  int    macro;
   byte  reg;
   FILE* file;
-  int   i;
+  byte  flag;
+  byte  c;
+  int   i,j;
+  byte  b;
+  byte valid;
   orig = line;
   sourceLine = line;
   if (*line == '.') {
     if (strncasecmp(line,".1805",5) == 0) { use1805 = 0xff; return; }
     if (strncasecmp(line,".list",5) == 0) { showList = 0xff; return; }
     if (strncasecmp(line,".sym",4) == 0) { showSymbols = 0xff; return; }
+    if (strncasecmp(line,".op ",4) == 0) { compileOp(line+4); return; }
     }
   if (strncasecmp(line,"include ", 8) == 0) {
     sprintf(buffer,"#%s",line);
@@ -977,8 +1105,11 @@ void Asm(char* line) {
     addLabel(label, address);
     }
   if (strlen(opcode) > 0) {
-    if (passNumber == 2 && createLst != 0) fprintf(lstFile, "[%5d] %04x: ",lineCount[numLineCount],asmAddress);
-    if (passNumber == 2 && showList != 0) printf("[%5d] %04x: ",lineCount[numLineCount],asmAddress);
+    macro = -1;
+    if (passNumber == 2 && createLst != 0)
+      fprintf(lstFile, "[%5d] %04x: ",lineCount[numLineCount],asmAddress);
+    if (passNumber == 2 && showList != 0)
+      printf("[%5d] %04x: ",lineCount[numLineCount],asmAddress);
     lstCount = 0;
     i = 0;
     pos = -1;
@@ -986,7 +1117,39 @@ void Asm(char* line) {
       if (strcasecmp(opcode, opcodes[i].opcode) == 0) pos = i;
       i++;
       }
-    if (pos < 0) {
+    opline = trim(args);
+    if (pos < 0 && numOps > 0) {
+      opcount = 0;
+      while (*opline != 0) {
+        isreg[opcount] = isRReg(opline);
+        opline = asm_evaluate(opline,'N');
+        operands[opcount++] = asm_numStack[0];
+        opline = trim(opline);
+        if (*opline != 0 && *opline != ',') {
+          printf("ERROR: Invalid operand list: %s\n",orig);
+          exit(1);
+          }
+        if (*opline == ',') opline++;
+        opline = trim(opline);
+        }
+      for (i=0; i<numOps; i++)
+        if (strcasecmp(opcode, ops[i]) == 0 && strlen(arglist[i]) == opcount) {
+          flag = 0xff;
+          for (j=0; j<strlen(arglist[i]); j++) {
+            if (arglist[i][j] == 'N' || arglist[i][j] == 'n')
+              if (operands[j] > 15) flag = 0;
+            if (arglist[i][j] == 'B' || arglist[i][j] == 'b')
+              if (operands[j] > 255) flag = 0;
+            if (arglist[i][j] == 'R' || arglist[i][j] == 'r')
+              if (isreg[j] == 0 || operands[j] > 15) flag = 0;
+            }
+          if (flag) {
+            macro = i;
+            i = numOps+1; 
+            }
+          }
+      }
+    if (pos < 0 && macro == -1) {
       printf("***ERROR: Unknown opcode: %s\n",opcode);
       errors++;
       return;
@@ -994,161 +1157,146 @@ void Asm(char* line) {
     linesAssembled++;
     while (*args != 0 && args[strlen(args)-1] <= ' ')
       args[strlen(args)-1] = 0;
-    switch (opcodes[pos].typ) {
-      case OT_0ARG:
-           if (strlen(args) > 0 && passNumber == 2) {
-             printf("WARNING: %s does not take operands\n",opcodes[pos].opcode);
-             }
-           output(opcodes[pos].byte1);
-           break;
-      case OT_1ARG:
-           output(opcodes[pos].byte1);
-           output(processArgs(args) & 0xff);
-           break;
-      case OT_SBR:
-           output(opcodes[pos].byte1);
-           value = processArgs(args);
-           if (passNumber == 2 && (value & 0xff00) != (address & 0xff00)) {
-             if (numLineCount == 0)
-               printf("[%5d]: Short branch out of page\n",lineCount[numLineCount]);
-             else
-               printf("<%5d>: Short branch out of page\n",lineCount[numLineCount]);
-             errors++;
-             }
-           output(value & 0xff);
-           break;
-      case OT_NARG:
-           output(opcodes[pos].byte1 | (processArgs(args) & 0xf));
-           break;
-      case OT_DB:
-           processDb(args,opcodes[pos].byte1);
-           break;
-      case OT_DS:
-           processDs(processArgs(args));
-           break;
-      case OT_ORG:
-           value = processArgs(args);
-           processOrg(processArgs(args));
-           break;
-      case OT_EQU:
-           value = processArgs(args);
-           setLabel(label, value);
-           break;
-      case OT_LBR:
-           value = processArgs(args);
-           output(opcodes[pos].byte1);
-           output(value/256);
-           output(value%256);
-           break;
-      case OT_680ARG:
-           if (use1805 == 0) {
-             printf("***ERROR: 1805 Instruction used while not in 1805 mode\n");
-             errors++;
-             }
-           output(0x68);
-           output(opcodes[pos].byte1);
-           break;
-      case OT_681ARG:
-           if (use1805 == 0) {
-             printf("***ERROR: 1805 Instruction used while not in 1805 mode\n");
-             errors++;
-             }
-           output(0x68);
-           output(opcodes[pos].byte1);
-           output(processArgs(args) & 0xff);
-           break;
-      case OT_682ARG:
-           if (use1805 == 0) {
-             printf("***ERROR: 1805 Instruction used while not in 1805 mode\n");
-             errors++;
-             }
-           output(0x68);
-           pargs = asm_evaluate(args,'N');
-           output(opcodes[pos].byte1 | (asm_numStack[0] & 0xf));
-           pargs = trim(pargs);
-           if (*pargs == ',') {
-             pargs++;
-             pargs = trim(pargs);
-             pargs = asm_evaluate(pargs,'N');
-             output((asm_numStack[0] & 0xff00) >> 8);
-             output(asm_numStack[0] & 0xff);
-             }
-           else {
-             printf("***ERROR: Missing argument\n");
-             errors++;
-             }
-           break;
-      case OT_68NARG:
-           if (use1805 == 0) {
-             printf("***ERROR: 1805 Instruction used while not in 1805 mode\n");
-             errors++;
-             }
-           output(0x68);
-           output(opcodes[pos].byte1 | (processArgs(args) & 0xf));
-           break;
-      case OT_END:
-           if (passNumber == 1) {
-             execAddr = processArgs(args) & 0xffff;
-             }
-           break;
-      case OT_PUSH:
-           value = processArgs(args) & 0xf;
-           output(GHI | value);
-           output(STXD);
-           output(GLO | value);
-           output(STXD);
-           break;
-      case OT_POP:
-           value = processArgs(args) & 0xf;
-           output(IRX);
-           output(LDXA);
-           output(PLO | value);
-           output(LDX);
-           output(PHI | value);
-           break;
-      case OT_RTN:
-           output(SEP + 5);
-           break;
-      case OT_CALL:
-           value = processArgs(args);
-           output(SEP + 4);
-           output(value / 256);
-           output(value % 256);
-           break;
-      case OT_MOV:
-           pargs = asm_evaluate(args,'N');
-           reg = (asm_numStack[0] & 0xf);
-           pargs = trim(pargs);
-           if (*pargs == ',') {
-             pargs++;
-             if (*pargs == 'r' || *pargs == 'R') {
-                asm_evaluate(pargs,'N');
-                value = asm_numStack[0] & 0xf;
-                output(GHI + value);
-                output(PHI + reg);
-                output(GLO + value);
-                output(PLO + reg);
-                }
-             else {
-               asm_evaluate(pargs,'N');
-               value = asm_numStack[0];
-               output(LDI);
-               output((value & 0xff00) >> 8);
-               output(PHI | reg);
-               output(LDI);
-               output(value & 0x00ff);
-               output(PLO | reg);
+    if (macro >= 0) {
+      b = 0;
+      i = 0;
+      valid = 0;
+      while ((c = translation[macro][i]) != 0) {
+        if (c == ' ') {
+          if (valid) output(b);
+          b = 0;
+          valid = 0;
+          }
+        if (c >= '0' && c <='9') { b = (b << 4) | (c - '0'); valid = 0xff; }
+        if (c >= 'A' && c <='F') { b = (b << 4) | (c - 55); valid = 0xff; }
+        if (c >= 'a' && c <='f') { b = (b << 4) | (c - 87); valid = 0xff; }
+        if (c == '$') {
+          i++;
+          c = translation[macro][i] - '1';
+          b = (b << 4) | (operands[c] & 0xf);
+          valid = 0xff;
+          }
+        if (c == 'l' || c == 'L') {
+          i++;
+          if (valid) output(b);
+          c = translation[macro][i] - '1';
+          if (c >= 0 && c<= 9) b = (operands[c] & 0xff);
+          valid = 0xff;
+          }
+        if (c == 'h' || c == 'H') {
+          i++;
+          if (valid) output(b);
+          c = translation[macro][i] - '1';
+          b = ((operands[c] >> 8) & 0xff);
+          valid = 0xff;
+          }
+        i++;
+        }
+      if (valid) output(b);
+      }
+    else {
+      switch (opcodes[pos].typ) {
+        case OT_0ARG:
+             if (strlen(args) > 0 && passNumber == 2) {
+               printf("WARNING: %s does not take operands\n",opcodes[pos].opcode);
                }
-             }
-           else {
-             printf("Invalid arguments for MOV\n");
+             output(opcodes[pos].byte1);
+             break;
+        case OT_1ARG:
+             output(opcodes[pos].byte1);
+             output(processArgs(args) & 0xff);
+             break;
+        case OT_SBR:
+             output(opcodes[pos].byte1);
+             value = processArgs(args);
+             if (passNumber == 2 && (value & 0xff00) != (address & 0xff00)) {
+               if (numLineCount == 0)
+                 printf("[%5d]: Short branch out of page\n",lineCount[numLineCount]);
+               else
+                 printf("<%5d>: Short branch out of page\n",lineCount[numLineCount]);
+               errors++;
+               }
+             output(value & 0xff);
+             break;
+        case OT_NARG:
+             output(opcodes[pos].byte1 | (processArgs(args) & 0xf));
+             break;
+        case OT_DB:
+             processDb(args,opcodes[pos].byte1);
+             break;
+        case OT_DS:
+             processDs(processArgs(args));
+             break;
+        case OT_ORG:
+             value = processArgs(args);
+             processOrg(processArgs(args));
+             break;
+        case OT_EQU:
+             value = processArgs(args);
+             setLabel(label, value);
+             break;
+        case OT_LBR:
+             value = processArgs(args);
+             output(opcodes[pos].byte1);
+             output(value/256);
+             output(value%256);
+             break;
+        case OT_680ARG:
+             if (use1805 == 0) {
+               printf("***ERROR: 1805 Instruction used while not in 1805 mode\n");
+               errors++;
+               }
+             output(0x68);
+             output(opcodes[pos].byte1);
+             break;
+        case OT_681ARG:
+             if (use1805 == 0) {
+               printf("***ERROR: 1805 Instruction used while not in 1805 mode\n");
+               errors++;
+               }
+             output(0x68);
+             output(opcodes[pos].byte1);
+             output(processArgs(args) & 0xff);
+             break;
+        case OT_682ARG:
+             if (use1805 == 0) {
+               printf("***ERROR: 1805 Instruction used while not in 1805 mode\n");
+               errors++;
+               }
+             output(0x68);
+             pargs = asm_evaluate(args,'N');
+             output(opcodes[pos].byte1 | (asm_numStack[0] & 0xf));
+             pargs = trim(pargs);
+             if (*pargs == ',') {
+               pargs++;
+               pargs = trim(pargs);
+               pargs = asm_evaluate(pargs,'N');
+               output((asm_numStack[0] & 0xff00) >> 8);
+               output(asm_numStack[0] & 0xff);
+               }
+             else {
+               printf("***ERROR: Missing argument\n");
+               errors++;
+               }
+             break;
+        case OT_68NARG:
+             if (use1805 == 0) {
+               printf("***ERROR: 1805 Instruction used while not in 1805 mode\n");
+               errors++;
+               }
+             output(0x68);
+             output(opcodes[pos].byte1 | (processArgs(args) & 0xf));
+             break;
+        case OT_END:
+             if (passNumber == 1) {
+               execAddr = processArgs(args) & 0xffff;
+               }
+             break;
+        default:
+             printf("***ERROR: Unknown instruction type: %d\n",opcodes[pos].typ);
              errors++;
-             }
-           break;
-      default:
-           printf("***ERROR: Unknown instruction type: %d\n",opcodes[pos].typ);
-           errors++;
-           break;
+             break;
+        }
       }
     if (passNumber == 2 && (createLst != 0 || showList != 0)) {
       if (lstCount <= 4) {
@@ -1334,6 +1482,7 @@ int main(int argc, char** argv) {
   numDefines = 0;
   numLabels = 0;
   errors = 0;
+  numOps = 0;
   strcpy(lineEnding,"\n");
   strcpy(sourceFile,"");
   i = 0;

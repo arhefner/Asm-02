@@ -1,7 +1,12 @@
 .1805      - Enable 1805 mode
 .list      - Enable show list
 .sym       - Show symbols
-
+.op "opcode","arglist","translation"
+   arglist:
+     B - byte
+     N - nybble
+     W - word
+     R - R-register
 
 Command line switches:
   -1805         - Enable 1805 mode
@@ -40,3 +45,12 @@ Pseudo ops:
   org expr      - Set assembly address
   push reg      - Push 16-bit R-register
   pop  rg       - Pop 16-bit R-register
+
+Sample opcode macros:
+.op "PUSH","N","9$1 73 8$1 73"
+.op "POP","N","60 72 A$1 F0 B$1"
+.op "CALL","W","D4 H1 L1"
+.op "RTN","","D5"
+.op "MOV","NR","9$1 B$2 8$1 A$2"
+.op "MOV","NW","F8 H2 B$1 F8 L2 A$1"
+
