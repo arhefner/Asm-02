@@ -1029,7 +1029,7 @@ void Asm(char* line) {
       pos = 0;
       while (*line != 0 && *line > ' ') label[pos++] = *line++;
       label[pos] = 0;
-      if (atoi(label) != 0) {
+      if (atoi(label) != 0 || strlen(label) > 1) {
         nests[numNests++] = 'N';
         }
       else {
@@ -1440,7 +1440,12 @@ int pass(int p) {
     for (i=0; i<strlen(buffer); i++)
       if (buffer[i] < 32) buffer[i] = 0;
     for (i=0; i<numDefines; i++) {
-      while ((pos = strstr(buffer,defines[i])) != NULL) {
+      pos = buffer;
+      if (strncasecmp(buffer,"#define ",8) == 0) {
+        pos += 8;
+        while (*pos != 0 && *pos != ' ') pos++;
+        }
+      while ((pos = strstr(pos,defines[i])) != NULL) {
         if (isAlpha(*(pos-1)) == 0 &&
             isAlpha(*(pos+strlen(defines[i]))) == 0) {
           strcpy(rest,pos+strlen(defines[i]));
@@ -1448,6 +1453,7 @@ int pass(int p) {
           strcat(buffer, defineValues[i]);
           strcat(buffer, rest);
           }
+        else pos++;
         }
       }
     lineCount[numLineCount]++;
