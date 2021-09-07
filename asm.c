@@ -915,6 +915,7 @@ void compileOp(char* line) {
 
 void Asm(char* line) {
   int   pos;
+  char *lpos;
   char  qt;
   char *orig;
   char *def;
@@ -927,15 +928,44 @@ void Asm(char* line) {
   int   opcount;
   char *pargs;
   char  buffer[256];
+  char  rest[256];
   dword  value;
   int    macro;
-  byte  reg;
   FILE* file;
   byte  flag;
   byte  c;
   int   i,j;
   byte  b;
   byte valid;
+
+  for (i=0; i<numDefines; i++) {
+    lpos = line;
+    if (strncasecmp(line,"#define ",8) == 0) {
+      lpos += 8;
+      while (*lpos != 0 && *lpos != ' ') lpos++;
+      }
+    if (strncasecmp(line,"#ifdef ",7) == 0) {
+      lpos += 7;
+      while (*lpos != 0 && *lpos != ' ') lpos++;
+      }
+    if (strncasecmp(line,"#ifndef ",8) == 0) {
+      lpos += 8;
+      while (*lpos != 0 && *lpos != ' ') lpos++;
+      }
+    while ((lpos = strstr(lpos,defines[i])) != NULL) {
+      if (isAlpha(*(lpos-1)) == 0 &&
+          isAlpha(*(lpos+strlen(defines[i]))) == 0) {
+        strcpy(rest,lpos+strlen(defines[i]));
+        *lpos = 0;
+        strcat(line, defineValues[i]);
+        strcat(line, rest);
+        }
+      else lpos++;
+      }
+    }
+
+
+
   orig = line;
   sourceLine = line;
   if (*line == '.') {
@@ -1055,6 +1085,8 @@ void Asm(char* line) {
     while (fgets(buffer, 256, file) != NULL) {
       while (strlen(buffer) > 0 && buffer[strlen(buffer)-1] < 32)
         buffer[strlen(buffer)-1] = 0;
+
+
       lineCount[numLineCount]++;
       Asm(buffer);
       }
@@ -1416,8 +1448,6 @@ void processOption(char* option) {
 int pass(int p) {
   int i;
   char buffer[256];
-  char rest[256];
-  char *pos;
   FILE* inFile;
   passNumber = p;
   address = 0;
@@ -1442,31 +1472,6 @@ int pass(int p) {
   while (fgets(buffer, 255, inFile) != NULL) {
     for (i=0; i<strlen(buffer); i++)
       if (buffer[i] < 32) buffer[i] = 0;
-    for (i=0; i<numDefines; i++) {
-      pos = buffer;
-      if (strncasecmp(buffer,"#define ",8) == 0) {
-        pos += 8;
-        while (*pos != 0 && *pos != ' ') pos++;
-        }
-      if (strncasecmp(buffer,"#ifdef ",7) == 0) {
-        pos += 7;
-        while (*pos != 0 && *pos != ' ') pos++;
-        }
-      if (strncasecmp(buffer,"#ifndef ",8) == 0) {
-        pos += 8;
-        while (*pos != 0 && *pos != ' ') pos++;
-        }
-      while ((pos = strstr(pos,defines[i])) != NULL) {
-        if (isAlpha(*(pos-1)) == 0 &&
-            isAlpha(*(pos+strlen(defines[i]))) == 0) {
-          strcpy(rest,pos+strlen(defines[i]));
-          *pos = 0;
-          strcat(buffer, defineValues[i]);
-          strcat(buffer, rest);
-          }
-        else pos++;
-        }
-      }
     lineCount[numLineCount]++;
     Asm(buffer);
     }
