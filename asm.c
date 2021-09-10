@@ -1023,6 +1023,8 @@ void Asm(char* line) {
       pos = 0;
       while (*line != 0 && *line > ' ') label[pos++] = *line++;
       label[pos] = 0;
+      if (strchr(line,';') != NULL) *(strchr(line,';')) = 0;
+      while (line[strlen(line)-1] == ' ') line[strlen(line)-1] = 0;
       line = trim(line);
       if (*line != 0) addDefine(label, line, 0);
         else addDefine(label, "1", 0);
