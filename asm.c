@@ -1474,7 +1474,7 @@ int pass(int p) {
     }
   while (fgets(buffer, 255, inFile) != NULL) {
     for (i=0; i<strlen(buffer); i++)
-      if (buffer[i] < 32) buffer[i] = 0;
+      if (buffer[i] < 32 && buffer[i] != '\t') buffer[i] = 0;
     lineCount[numLineCount]++;
     Asm(buffer);
     }
