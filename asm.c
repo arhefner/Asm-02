@@ -663,7 +663,7 @@ char* asm_evaluate(char* buffer,char useDefines) {
   asm_numTokens = 0;
   asm_nstackSize = 0;
   flag = 1;
-  while (*buffer == ' ') buffer++;
+  buffer = trim(buffer);
   while (*buffer != 0 && flag) {
 
     buffer = trim(buffer);
@@ -727,7 +727,7 @@ char* asm_evaluate(char* buffer,char useDefines) {
       return buffer;
       }
 
-    while (*buffer == ' ') buffer++;
+    buffer = trim(buffer);
     while (*buffer == ')' && parens > 0) {
       parens--;
       while (asm_reduce(0)) ;
@@ -942,15 +942,15 @@ void Asm(char* line) {
     lpos = line;
     if (strncasecmp(line,"#define ",8) == 0) {
       lpos += 8;
-      while (*lpos != 0 && *lpos != ' ') lpos++;
+      while (*lpos != 0 && *lpos != ' ' && *lpos != '\t') lpos++;
       }
     if (strncasecmp(line,"#ifdef ",7) == 0) {
       lpos += 7;
-      while (*lpos != 0 && *lpos != ' ') lpos++;
+      while (*lpos != 0 && *lpos != ' ' && *lpos != '\t') lpos++;
       }
     if (strncasecmp(line,"#ifndef ",8) == 0) {
       lpos += 8;
-      while (*lpos != 0 && *lpos != ' ') lpos++;
+      while (*lpos != 0 && *lpos != ' ' && *lpos != '\t') lpos++;
       }
     while ((lpos = strstr(lpos,defines[i])) != NULL) {
       if (isAlpha(*(lpos-1)) == 0 &&
@@ -1076,7 +1076,7 @@ void Asm(char* line) {
 
   if (strncasecmp(line, "#include",8) == 0) {
     line += 8;
-    while (*line == ' ' || *line == 9) line++;
+    line = trim(line);
     file = fopen(line,"r");
     if (file == NULL) {
       printf("Could not open include file: %s\n",line);
