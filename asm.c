@@ -33,26 +33,54 @@ typedef struct {
 #define OT_SBR    13
 #define OT_MACRO  19
 
-#define OP_LOW    0x62
-#define OP_HIGH   0x61
-#define OP_DOT    0x51
-#define OP_MOD    0x43
-#define OP_MUL    0x42
-#define OP_DIV    0x41
-#define OP_ADD    0x32
-#define OP_SUB    0x31
-#define OP_GT     0x26
-#define OP_LT     0x25
-#define OP_GTE    0x24
-#define OP_LTE    0x23
-#define OP_EQ     0x22
-#define OP_NE     0x21
-#define OP_AND    0x13
-#define OP_OR     0x12
-#define OP_XOR    0x11
-#define OP_OP     0x08
-#define OP_CP     0x09
-#define OP_NUM    0x00
+#define OP_LOW  0x94
+#define OP_HIGH 0x93
+#define OP_SGN  0x92
+#define OP_ABS  0x91
+#define OP_DOT  0x80
+#define OP_MUL  0x70
+#define OP_DIV  0x71
+#define OP_MOD  0x72
+#define OP_ADD  0x60
+#define OP_SUB  0x61
+#define OP_SHR  0x50
+#define OP_SHL  0x51
+#define OP_AND  0x40
+#define OP_OR   0x41
+#define OP_XOR  0x42
+#define OP_EQ   0x30
+#define OP_NE   0x31
+#define OP_LT   0x32
+#define OP_GT   0x33
+#define OP_LTE  0x34
+#define OP_GTE  0x35
+#define OP_LAND 0x20
+#define OP_LOR  0x21
+#define OP_CP   0x10
+#define OP_OP   0x02
+#define OP_END  0x01
+#define OP_NUM  0x00
+
+// #define OP_LOW    0x62
+// #define OP_HIGH   0x61
+// #define OP_DOT    0x51
+// #define OP_MOD    0x43
+// #define OP_MUL    0x42
+// #define OP_DIV    0x41
+// #define OP_ADD    0x32
+// #define OP_SUB    0x31
+// #define OP_GT     0x26
+// #define OP_LT     0x25
+// #define OP_GTE    0x24
+// #define OP_LTE    0x23
+// #define OP_EQ     0x22
+// #define OP_NE     0x21
+// #define OP_AND    0x13
+// #define OP_OR     0x12
+// #define OP_XOR    0x11
+// #define OP_OP     0x08
+// #define OP_CP     0x09
+// #define OP_NUM    0x00
 
 OPCODE opcodes[] = {
   { "adc",   OT_0ARG,   ADC   },
@@ -338,6 +366,7 @@ word getLabel(char* label) {
       return labelValues[i];
       }
   printf("***ERROR: Label not found: %s\n",label);
+  printf("%s\n",sourceLine);
   errors++;
   return 0;
   }
@@ -521,265 +550,190 @@ char* asm_convertNumber(char* buffer, dword* value, byte* success) {
   }
 
 
-int asm_reduce(char last) {
-  int op;
-  int ret;
-  if (asm_numTokens == 0) return 0;
-  if (asm_tokens[asm_numTokens-1] != OP_NUM) return 0;
-  if (asm_numTokens > 1 && asm_tokens[asm_numTokens-2] >= 0x60) {
-    op   = asm_tokens[asm_numTokens-2];
-    asm_numTokens -= 2;
-    ret = 0;
-    if (last) ret = -1;
-    }
-  else if (asm_numTokens > 1 && asm_tokens[asm_numTokens-2] == OP_OP) {
-    op   = asm_tokens[asm_numTokens-2];
-    asm_numTokens -= 2;
-    ret = 0;
-    if (asm_numTokens > 0 && asm_tokens[asm_numTokens-1] >= 0x60) ret = -1;
-    if (last) ret = -1;
-    }
-  else if (asm_numTokens > 2 && asm_tokens[asm_numTokens-2] >= 0x10 &&
-                            asm_tokens[asm_numTokens-3] == OP_NUM) {
-    op   = asm_tokens[asm_numTokens-2];
-    asm_numTokens -= 3;
-    ret = -1;
-    }
-  else {
-    return 0;
-    }
-  switch (op) {
-    case OP_HIGH:
-         asm_numStack[asm_nstackSize-1] =
-           (asm_numStack[asm_nstackSize-1] & 0xff00) >> 8;
-         break;
-    case OP_LOW:
-         asm_numStack[asm_nstackSize-1] =
-           (asm_numStack[asm_nstackSize-1] & 0x00ff);
-         break;
-    case OP_DOT:
-         if (asm_numStack[asm_nstackSize-1] == 0)
-           asm_numStack[asm_nstackSize-2] &= 0x00ff;
-         else
-           asm_numStack[asm_nstackSize-2] >>= 8;
-         asm_nstackSize--;
-         break;
-    case OP_MUL:
-         asm_numStack[asm_nstackSize-2] =
-             asm_numStack[asm_nstackSize-2] *
-             asm_numStack[asm_nstackSize-1];
-         asm_nstackSize--;
-         break;
-    case OP_DIV:
-         asm_numStack[asm_nstackSize-2] =
-             asm_numStack[asm_nstackSize-2] /
-             asm_numStack[asm_nstackSize-1];
-         asm_nstackSize--;
-         break;
-    case OP_MOD:
-         asm_numStack[asm_nstackSize-2] =
-             asm_numStack[asm_nstackSize-2] %
-             asm_numStack[asm_nstackSize-1];
-         asm_nstackSize--;
-         break;
-    case OP_ADD:
-         asm_numStack[asm_nstackSize-2] =
-             asm_numStack[asm_nstackSize-2] +
-             asm_numStack[asm_nstackSize-1];
-         asm_nstackSize--;
-         break;
-    case OP_SUB:
-         asm_numStack[asm_nstackSize-2] =
-             asm_numStack[asm_nstackSize-2] -
-             asm_numStack[asm_nstackSize-1];
-         asm_nstackSize--;
-         break;
-    case OP_GT :
-         asm_numStack[asm_nstackSize-2] =
-             asm_numStack[asm_nstackSize-2] >
-             asm_numStack[asm_nstackSize-1];
-         asm_nstackSize--;
-         break;
-    case OP_LT :
-         asm_numStack[asm_nstackSize-2] =
-             asm_numStack[asm_nstackSize-2] <
-             asm_numStack[asm_nstackSize-1];
-         asm_nstackSize--;
-         break;
-    case OP_GTE:
-         asm_numStack[asm_nstackSize-2] =
-             asm_numStack[asm_nstackSize-2] >=
-             asm_numStack[asm_nstackSize-1];
-         asm_nstackSize--;
-         break;
-    case OP_LTE:
-         asm_numStack[asm_nstackSize-2] =
-             asm_numStack[asm_nstackSize-2] <=
-             asm_numStack[asm_nstackSize-1];
-         asm_nstackSize--;
-         break;
-    case OP_EQ :
-         asm_numStack[asm_nstackSize-2] =
-             asm_numStack[asm_nstackSize-2] ==
-             asm_numStack[asm_nstackSize-1];
-         asm_nstackSize--;
-         break;
-    case OP_NE :
-         asm_numStack[asm_nstackSize-2] =
-             asm_numStack[asm_nstackSize-2] !=
-             asm_numStack[asm_nstackSize-1];
-         asm_nstackSize--;
-         break;
-    case OP_AND:
-         asm_numStack[asm_nstackSize-2] =
-             asm_numStack[asm_nstackSize-2] &
-             asm_numStack[asm_nstackSize-1];
-         asm_nstackSize--;
-         break;
-    case OP_OR :
-         asm_numStack[asm_nstackSize-2] =
-             asm_numStack[asm_nstackSize-2] |
-             asm_numStack[asm_nstackSize-1];
-         asm_nstackSize--;
-         break;
-    case OP_XOR:
-         asm_numStack[asm_nstackSize-2] =
-             asm_numStack[asm_nstackSize-2] ^
-             asm_numStack[asm_nstackSize-1];
-         asm_nstackSize--;
-         break;
-    }
-  asm_tokens[asm_numTokens++] = OP_NUM;
-  return ret;
-  }
 
-void asm_add(int op) {
-  if (asm_tokens[asm_numTokens-1] >= 0x10) {
-    }
-  while (asm_numTokens > 2 && (op & 0xf0) <= (asm_tokens[asm_numTokens-2] & 0xf0)) {
-    asm_reduce(0);
-    }
-  asm_tokens[asm_numTokens++] = op;
-  }
 
-char* asm_evaluate(char* buffer,char useDefines) {
+char* asm_evaluate(char *pos) {
+  int numbers[256];
+  byte ops[256];
+  int  nstack;
+  int  ostack;
+  int  op;
+  int  flag;
+  int  neg;
+  int  p;
   char term;
-  int p;
-  char token[64];
-  int flag;
-  int func;
-  int parens;
   byte success;
   dword number;
-  char* origLine;
-  origLine = buffer;
-  parens = 0;
-  asm_numTokens = 0;
-  asm_nstackSize = 0;
-  flag = 1;
-  buffer = trim(buffer);
-  while (*buffer != 0 && flag) {
+  char token[64];
+  nstack = 0;
+  ostack = 0;
+  op = 0;
+  while (*pos  != 0 && op != OP_END) {
 
-    buffer = trim(buffer);
-
-    func = -1;
-    while (func) {
-      func = 0;
-      while (*buffer == '(') {
-        asm_tokens[asm_numTokens++] = OP_OP;
-        parens++;
-        buffer++;
-        func = -1;
+    flag = -1;
+    while (flag) {
+      flag = 0;
+      if (*pos == '(') {
+        ops[ostack++] = OP_OP;
+        flag = -1;
         }
-      if (strncasecmp(buffer,"high ",5) == 0) {
-         asm_tokens[asm_numTokens++] = OP_HIGH;
-         buffer+=5;
-         func = -1;
-         }
-      if (strncasecmp(buffer,"low ",4) == 0) {
-         asm_tokens[asm_numTokens++] = OP_LOW;
-         buffer+=4;
-         func = -1;
-         }
-      }
+      else if (strncasecmp(pos, "abs(", 4) == 0) {
+        ops[ostack++] = OP_ABS;
+        ops[ostack++] = OP_OP;
+        pos += 3;
+        flag = -1;
+        }
+      else if (strncasecmp(pos, "sgn(", 4) == 0) {
+        ops[ostack++] = OP_SGN;
+        ops[ostack++] = OP_OP;
+        pos += 3;
+        flag = -1;
+        }
+      else if (strncasecmp(pos, "high ", 5) == 0) {
+        ops[ostack++] = OP_HIGH;
+        pos += 3;
+        flag = -1;
+        }
+      else if (strncasecmp(pos, "low ", 4) == 0) {
+        ops[ostack++] = OP_LOW;
+        pos += 2;
+        flag = -1;
+        }
 
-    buffer = trim(buffer);
-
-    term = 0;
-
-    /* **************************** */
-    /* ***** Process constant ***** */
-    /* **************************** */
-    buffer = asm_convertNumber(buffer, &number, &success);
-    if (success != 0) {
-      asm_numStack[asm_nstackSize++] = number;
-      asm_tokens[asm_numTokens++] = OP_NUM;
-      term = -1;
-      }
-
-    if (term == 0) {
-      if ((*buffer >= 'a' && *buffer <= 'z') ||
-          (*buffer >= 'A' && *buffer <= 'Z')) {
-        p = 0;
-        while ((*buffer >= 'a' && *buffer <= 'z') ||
-               (*buffer >= 'A' && *buffer <= 'Z') ||
-               (*buffer >= '0' && *buffer <= '9') ||
-                *buffer == '_' || *buffer == '!') {
-          token[p++] = *buffer++;
+      else {
+        term = 0;
+        pos = asm_convertNumber(pos, &number, &success);
+        if (success != 0) {
+          numbers[nstack++] = number;
+          term = -1;
+          pos--;
           }
-        token[p] = 0;
-        asm_numStack[asm_nstackSize++] = getLabel(token);
-        asm_tokens[asm_numTokens++] = OP_NUM;
-        term = -1;
+
+        if (term == 0) {
+          if ((*pos >= 'a' && *pos <= 'z') ||
+              (*pos >= 'A' && *pos <= 'Z')) {
+            p = 0;
+            while ((*pos >= 'a' && *pos <= 'z') ||
+                   (*pos >= 'A' && *pos <= 'Z') ||
+                   (*pos >= '0' && *pos <= '9') ||
+                    *pos == '_' || *pos == '!') {
+              token[p++] = *pos++;
+              }
+            token[p] = 0;
+            numbers[nstack++] = getLabel(token);
+            term = -1;
+            pos--;
+            }
+          }
+        if (term == 0) { printf("Non-number found\n"); return 0; }
+        }
+
+      if (*pos != 0) pos++;
+      pos = trim(pos);
+      }
+    flag = -1;
+    while (flag) {
+      flag = 0;
+      op = 0;
+      switch (*pos) {
+        case 0  : op = OP_END; break;
+        case ',': op = OP_END; break;
+        case '.': op = OP_DOT; break;
+        case '*': op = OP_MUL; break;
+        case '/': op = OP_DIV; break;
+        case '%': op = OP_MOD; break;
+        case '+': op = OP_ADD; break;
+        case '-': op = OP_SUB; break;
+        case '^': op = OP_XOR; break;
+        case ')': op = OP_CP ; break;
+        case '&':
+             if (*(pos+1) == '&') { op = OP_LAND; pos++; }
+               else op = OP_AND;
+             break;
+        case '|':
+             if (*(pos+1) == '|') { op = OP_LOR; pos++; }
+               else op = OP_OR;
+             break;
+        case '=':
+             if (*(pos+1) == '=') { op = OP_EQ; pos++; }
+               else op = OP_EQ;
+             break;
+        case '<':
+             if (*(pos+1) == '<') { op = OP_SHL; pos++; }
+             else if (*(pos+1) == '=') { op = OP_LTE; pos++; }
+             else op = OP_LT;
+             break;
+        case '>':
+             if (*(pos+1) == '>') { op = OP_SHR; pos++; }
+             else if (*(pos+1) == '=') { op = OP_GTE; pos++; }
+             else op = OP_GT;
+             break;
+        }
+      if (op == 0) { printf("Invalid OP %c (%02x)\n",*pos, *pos); return 0; }
+      while (ostack > 0 && (ops[ostack-1] & 0xf0) >= (op & 0xf0)) {
+        nstack--;
+        ostack--;
+        switch (ops[ostack]) {
+          case OP_MUL : numbers[nstack-1] *= numbers[nstack]; break;
+          case OP_DIV : numbers[nstack-1] /= numbers[nstack]; break;
+          case OP_MOD : numbers[nstack-1] %= numbers[nstack]; break;
+          case OP_ADD : numbers[nstack-1] += numbers[nstack]; break;
+          case OP_SUB : numbers[nstack-1] -= numbers[nstack]; break;
+          case OP_SHL : numbers[nstack-1] <<= numbers[nstack]; break;
+          case OP_SHR : numbers[nstack-1] >>= numbers[nstack]; break;
+          case OP_AND : numbers[nstack-1] &= numbers[nstack]; break;
+          case OP_OR  : numbers[nstack-1] |= numbers[nstack]; break;
+          case OP_LAND: numbers[nstack-1] &= numbers[nstack]; break;
+          case OP_LOR : numbers[nstack-1] |= numbers[nstack]; break;
+          case OP_XOR : numbers[nstack-1] ^= numbers[nstack]; break;
+          case OP_EQ  : numbers[nstack-1] = (numbers[nstack-1] == numbers[nstack]); break;
+          case OP_LT  : numbers[nstack-1] = (numbers[nstack-1] <  numbers[nstack]); break;
+          case OP_GT  : numbers[nstack-1] = (numbers[nstack-1] >  numbers[nstack]); break;
+          case OP_LTE : numbers[nstack-1] = (numbers[nstack-1] <= numbers[nstack]); break;
+          case OP_GTE : numbers[nstack-1] = (numbers[nstack-1] >= numbers[nstack]); break;
+          case OP_ABS : numbers[nstack]   = abs(numbers[nstack]); break;
+          case OP_HIGH: numbers[nstack]   = (numbers[nstack] >> 8) & 0xff; break;
+          case OP_LOW : numbers[nstack]   = numbers[nstack] & 0xff; break;
+          case OP_DOT :
+               if (numbers[nstack] & 1) numbers[nstack-1] = (numbers[nstack-1] >> 8) & 0xff;
+                 else numbers[nstack-1] = numbers[nstack-1] & 0xff;
+               break;
+          case OP_SGN:
+               if (numbers[nstack] > 0) numbers[nstack] = 1;
+               else if (numbers[nstack] < 0) numbers[nstack] = -1;
+               else numbers[nstack] = 0;
+               break;
+          }
+        if (ops[ostack] >= 0x90) nstack++;
+        }
+      if (op != OP_END) {
+        if (op == OP_CP) {
+          if (ops[ostack-1] != OP_OP) {
+            printf("Expression error, ) without (\n");
+            return 0;
+            }
+          ostack--;
+          flag = -1;
+          }
+        else
+          ops[ostack++] = op;
+        pos++;
+        while (*pos == ' ') pos++;
+        pos = trim(pos);
         }
       }
-
-    if (term == 0) {
-      printf("[%d] ***ERROR: Expression error, invalid term: %s\n",
-        lineCount[numLineCount], buffer);
-      errors++;
-      return buffer;
-      }
-
-    buffer = trim(buffer);
-    while (*buffer == ')' && parens > 0) {
-      parens--;
-      while (asm_reduce(0)) ;
-      buffer++;
-      }
-
-    buffer = trim(buffer);
-
-    if (*buffer == '+') { asm_add(OP_ADD); buffer++; }
-    else if (*buffer == '-') { asm_add(OP_SUB); buffer++; }
-    else if (*buffer == '*') { asm_add(OP_MUL); buffer++; }
-    else if (*buffer == '/') { asm_add(OP_DIV); buffer++; }
-    else if (*buffer == '%') { asm_add(OP_MOD); buffer++; }
-    else if (*buffer == '&') { asm_add(OP_AND); buffer++; }
-    else if (*buffer == '|') { asm_add(OP_OR); buffer++; }
-    else if (*buffer == '^') { asm_add(OP_XOR); buffer++; }
-    else if (*buffer == '.') { asm_add(OP_DOT); buffer++; }
-    else if (*buffer == '<' && *(buffer+1) == '=') { asm_add(OP_LTE); buffer+=2; }
-    else if (*buffer == '>' && *(buffer+1) == '=') { asm_add(OP_GTE); buffer+=2; }
-    else if (*buffer == '<' && *(buffer+1) == '>') { asm_add(OP_NE); buffer+=2; }
-    else if (*buffer == '<') { asm_add(OP_LT); buffer++; }
-    else if (*buffer == '>') { asm_add(OP_GT); buffer++; }
-    else if (*buffer == '=' && *(buffer+1) == '=') { asm_add(OP_EQ); buffer+=2; }
-    else if (*buffer == '=') { asm_add(OP_EQ); buffer++; }
-    else flag = 0;
     }
-  while (asm_reduce(-1));
-  if (asm_numTokens != 1) {
-    printf("***ERROR: Expression error, expression does not reduce to 1 value\n");
-    printf(">>> %s\n",origLine);
-    printf(">>> %s\n",sourceLine);
-    errors++;
-    }
-  return buffer;
+  if (nstack == 0) { printf("nstack empty\n"); return pos; }
+  if (nstack != 1) {
+     printf("Did not reduce to 1 term: %d\n",nstack);
+     return pos;
+     }
+  asm_numStack[0] = numbers[0];
+  return pos;
   }
 
 dword processArgs(char* args) {
-  args = asm_evaluate(args,'N');
+  args = asm_evaluate(args);
   return asm_numStack[0];
   }
 
@@ -794,7 +748,7 @@ void processDb(char* args,char typ) {
       if (*args == '\'') args++;
       }
     else {
-      args = asm_evaluate(args,'N');
+      args = asm_evaluate(args);
       num = asm_numStack[0];
       if (typ == 'B') output(num & 0xff);
       else if (typ == 'W') {
@@ -1047,7 +1001,7 @@ void Asm(char* line) {
   if (*line == '#') {
     if (strncasecmp(line,"#if ",4) == 0) {
       line += 4;
-      asm_evaluate(line,'Y');
+      asm_evaluate(line);
       if (asm_numStack[0] != 0) {
         nests[numNests++] = 'Y';
         }
@@ -1206,7 +1160,7 @@ void Asm(char* line) {
       opcount = 0;
       while (*opline != 0) {
         isreg[opcount] = isRReg(opline);
-        opline = asm_evaluate(opline,'N');
+        opline = asm_evaluate(opline);
         operands[opcount++] = asm_numStack[0];
         opline = trim(opline);
         if (*opline != 0 && *opline != ',') {
@@ -1349,13 +1303,13 @@ void Asm(char* line) {
                errors++;
                }
              output(0x68);
-             pargs = asm_evaluate(args,'N');
+             pargs = asm_evaluate(args);
              output(opcodes[pos].byte1 | (asm_numStack[0] & 0xf));
              pargs = trim(pargs);
              if (*pargs == ',') {
                pargs++;
                pargs = trim(pargs);
-               pargs = asm_evaluate(pargs,'N');
+               pargs = asm_evaluate(pargs);
                output((asm_numStack[0] & 0xff00) >> 8);
                output(asm_numStack[0] & 0xff);
                }
