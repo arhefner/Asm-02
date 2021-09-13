@@ -185,6 +185,19 @@ byte asm_numTokens;
 char *sourceLine;
 word lstCount;
 
+void list(char* message) {
+  if (passNumber != 2) return;
+  if (showList != 0) printf("%s",message);
+  if ( createLst != 0) fprintf(lstFile, "%s",message);
+  }
+
+char* lineNo() {
+  static char buffer[10];
+  if (numLineCount == 0) sprintf(buffer, "[%5d]",lineCount[numLineCount]);
+    else sprintf(buffer, "<%5d>",lineCount[numLineCount]);
+  return buffer;
+  }
+
 char* trim(char* line) {
   while (*line == ' ' || *line == '\t') line++;
   return line;
@@ -938,7 +951,7 @@ void Asm(char* line) {
   int   i,j;
   byte  b;
   byte valid;
-
+  char  lst[1024];
   for (i=0; i<numDefines; i++) {
     lpos = line;
     if (strncasecmp(line,"#define ",8) == 0) {
@@ -964,36 +977,56 @@ void Asm(char* line) {
       else lpos++;
       }
     }
-
-
-
   orig = line;
+
+
   sourceLine = line;
   if (*line == '.') {
-    if (strncasecmp(line,".1805",5) == 0) { use1805 = 0xff; return; }
-    if (strncasecmp(line,".list",5) == 0) { showList = 0xff; return; }
-    if (strncasecmp(line,".sym",4) == 0) { showSymbols = 0xff; return; }
-    if (strncasecmp(line,".op ",4) == 0) { compileOp(line+4); return; }
+    if (strncasecmp(line,".1805",5) == 0) {
+      use1805 = 0xff;
+      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
+      return;
+      }
+    if (strncasecmp(line,".list",5) == 0) {
+      showList = 0xff;
+      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
+      return;
+       }
+    if (strncasecmp(line,".sym",4) == 0) {
+      showSymbols = 0xff;
+      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
+      return;
+      }
+    if (strncasecmp(line,".op ",4) == 0) {
+      compileOp(line+4);
+      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
+      return;
+      }
     }
   if (strncasecmp(line,"include ", 8) == 0) {
     sprintf(buffer,"#%s",line);
     strcpy(line,buffer);
     }
+
   if (numNests > 0) {
     if (strncasecmp(line,"#else",5) == 0 && nests[numNests-1] != 'I') {
       nests[numNests-1] = (nests[numNests-1] == 'Y') ? 'N' : 'Y';
+      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
     if (nests[numNests-1] != 'Y' && strncasecmp(line,"#ifdef",6) == 0) {
       nests[numNests++] = 'I';
+      sprintf(lst, "%7s -----             %s\n",lineNo(), orig); list(lst);
       return;
       }
     if (nests[numNests-1] != 'Y' && strncasecmp(line,"#ifndef",7) == 0) {
       nests[numNests++] = 'I';
+      sprintf(lst, "%7s -----             %s\n",lineNo(), orig); list(lst);
       return;
       }
     if (nests[numNests-1] != 'Y' && strncasecmp(line,"#if ",4) == 0) {
       nests[numNests++] = 'I';
+      sprintf(lst, "%7s -----             %s\n",lineNo(), orig); list(lst);
       return;
       }
     if (strncasecmp(line,"#endif",6) == 0) {
@@ -1002,10 +1035,15 @@ void Asm(char* line) {
         printf("***ERROR: #endif without #if");
         errors++;
         }
+      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
-    if (nests[numNests-1] != 'Y') return;
+    if (nests[numNests-1] != 'Y') {
+      sprintf(lst, "%7s -----             %s\n",lineNo(), orig); list(lst);
+      return;
+      }
     }
+
   if (*line == '#') {
     if (strncasecmp(line,"#if ",4) == 0) {
       line += 4;
@@ -1016,6 +1054,7 @@ void Asm(char* line) {
       else {
         nests[numNests++] = 'N';
         }
+      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
     if (strncasecmp(line,"#define",7) == 0) {
@@ -1029,6 +1068,7 @@ void Asm(char* line) {
       line = trim(line);
       if (*line != 0) addDefine(label, line, 0);
         else addDefine(label, "1", 0);
+      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
     if (strncasecmp(line,"#undef",6) == 0) {
@@ -1041,6 +1081,7 @@ void Asm(char* line) {
       i = atoi(line);
       if (i == 0) i = 1;
       delDefine(label);
+      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
     if (strncasecmp(line,"#ifdef",6) == 0) {
@@ -1056,6 +1097,7 @@ void Asm(char* line) {
       else {
         nests[numNests++] = 'N';
         }
+      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
     if (strncasecmp(line,"#ifndef",7) == 0) {
@@ -1071,6 +1113,7 @@ void Asm(char* line) {
       else {
         nests[numNests++] = 'Y';
         }
+      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
     }
@@ -1083,6 +1126,7 @@ void Asm(char* line) {
       printf("Could not open include file: %s\n",line);
       exit(1);
       }
+    sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
     numLineCount++;
     lineCount[numLineCount] = 0;
     while (fgets(buffer, 256, file) != NULL) {
@@ -1116,10 +1160,12 @@ void Asm(char* line) {
       printf("***ERROR: Invalid label");
       printf("%s\n",orig);
       errors++;
+      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
     line++;
     }
+
   line = trim(line);
   if ((*line >= 'a' && *line <= 'z') ||
       (*line >= 'A' && *line <= 'Z')) {
@@ -1190,6 +1236,7 @@ void Asm(char* line) {
     if (pos < 0 && macro == -1) {
       printf("***ERROR: Unknown opcode: %s\n",opcode);
       errors++;
+      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
     linesAssembled++;
@@ -1349,6 +1396,9 @@ void Asm(char* line) {
       if (createLst) fprintf(lstFile, "\n");
       if (showList) printf("\n");
       }
+    }
+  else {
+    sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
     }
   }
 
