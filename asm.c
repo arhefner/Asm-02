@@ -498,6 +498,13 @@ char* asm_convertNumber(char* buffer, dword* value, byte* success) {
     *success = 0xff;
     return buffer;
     }
+  if (*buffer == '"' && *(buffer+2) == '"') {
+    buffer++;
+    *value = *buffer;
+    buffer += 2;
+    *success = 0xff;
+    return buffer;
+    }
   if (*buffer == '%') {
     buffer++;
     while (*buffer == '1' || *buffer == '0' || *buffer == '_') {
@@ -752,6 +759,12 @@ void processDb(char* args,char typ) {
       while (*args != 0 && *args != '\'')
         output(*args++);
       if (*args == '\'') args++;
+      }
+    else if (*args == '"' && *(args+2) != '"') {
+      args++;
+      while (*args != 0 && *args != '"')
+        output(*args++);
+      if (*args == '"') args++;
       }
     else {
       args = asm_evaluate(args);
