@@ -766,6 +766,18 @@ void processDb(char* args,char typ) {
         output(*args++);
       if (*args == '"') args++;
       }
+    else if (*args == '[') {
+      args++;
+      while (*args != 0 && *args != ']')
+        output(*args++);
+      if (*args == ']') args++;
+      }
+    else if (*args == '{') {
+      args++;
+      while (*args != 0 && *args != '{')
+        output(*args++);
+      if (*args == '{') args++;
+      }
     else {
       args = asm_evaluate(args);
       num = asm_numStack[0];
