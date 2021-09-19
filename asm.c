@@ -1490,8 +1490,10 @@ int pass(int p) {
     }
   if (passNumber == 2 && outCount > 0) writeOutput();    
   if (passNumber == 2 && outMode != 'B') {
-    //write EOF and close intel hex file
-    write(outFile, ":00000001ff\n", 12);
+    //write EOF before closing intel hex file
+    if (outMode == 'I') {
+      write(outFile, ":00000001ff\n", 12);
+    }
     close(outFile); 
   }
   if (passNumber == 2 && createLst) fclose(lstFile);
