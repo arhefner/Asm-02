@@ -1488,8 +1488,12 @@ int pass(int p) {
     lineCount[numLineCount]++;
     Asm(buffer);
     }
-  if (passNumber == 2 && outCount > 0) writeOutput();
-  if (passNumber == 2 && outMode != 'B') close(outFile);
+  if (passNumber == 2 && outCount > 0) writeOutput();    
+  if (passNumber == 2 && outMode != 'B') {
+    //write EOF and close intel hex file
+    write(outFile, ":00000001ff\n", 12);
+    close(outFile); 
+  }
   if (passNumber == 2 && createLst) fclose(lstFile);
   if (numNests > 0) printf("#ifdef without #endif\n");
 
@@ -1602,4 +1606,3 @@ int main(int argc, char** argv) {
 
   return 0;
   }
-
