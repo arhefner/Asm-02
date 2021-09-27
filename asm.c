@@ -1497,6 +1497,10 @@ int pass(int p) {
   lowAddress = 0xffff;
   highAddress = 0x0000;
   inFile = fopen(sourceFile,"r");
+  if (inFile == NULL) {
+    printf("Could not open source file: %s\n",sourceFile);
+    exit(1);
+    }
   if (passNumber == 2) {
       if (outMode != 'B') {
       outFile = open(outName,O_CREAT|O_TRUNC|O_WRONLY|O_BINARY,0666);
