@@ -35,6 +35,7 @@ Preprocessor:
   #ifndef symbol
   #else
   #endif
+  #error text
 
 Pseudo ops:
   db  bb,bb,... - Define bytes

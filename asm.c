@@ -1056,6 +1056,14 @@ void Asm(char* line) {
       sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
+    if (strncasecmp(line,"#error",6) == 0) {
+      line += 6;
+      line = trim(line);
+      printf("***ERROR: %s\n",line);
+      errors++;
+      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
+      return;
+      }
     if (strncasecmp(line,"#undef",6) == 0) {
       line += 6;
       line = trim(line);
