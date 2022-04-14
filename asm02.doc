@@ -38,6 +38,8 @@ Preprocessor:
   #error text
 
 Pseudo ops:
+  extrn label   - Define external label
+  public label  - Define label as public
   db  bb,bb,... - Define bytes
   dw  ww,ww,... - Define words
   dd  dd,dd,... - Define double words

@@ -135,6 +135,16 @@ LINK char** ops;
 LINK char** arglist;
 LINK char** translation;
 LINK int    numOps;
+LINK int   *publics;
+LINK int    numPublics;
+LINK int   *externals;
+LINK int    numExternals;
+LINK int   *references;
+LINK word  *refAddresses;
+LINK char  *refTypes;
+LINK int    numReferences;
+LINK int    usedReference;
+LINK char   referenceType;
 
 LINK word   address;
 LINK int    asmFile;

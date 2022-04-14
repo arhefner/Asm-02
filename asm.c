@@ -12,7 +12,7 @@
 #include "header.h"
 
 typedef struct {
-  char opcode[5];
+  char opcode[8];
   byte typ;
   byte byte1;
   } OPCODE;
@@ -32,6 +32,8 @@ typedef struct {
 #define OT_END    12
 #define OT_SBR    13
 #define OT_MACRO  19
+#define OT_PUBLIC 20
+#define OT_EXTRN  21
 
 #define OP_LOW  0x94
 #define OP_HIGH 0x93
@@ -209,6 +211,8 @@ OPCODE opcodes[] = {
   { "scal",  OT_682ARG, 0x80  },
   { "sret",  OT_680ARG, 0x90  },
   { "end",   OT_END,    0x00  },
+  { "public",OT_PUBLIC, 0x00  },
+  { "extrn", OT_EXTRN,  0x00  },
   { "",      0,         0     },
   };
 
@@ -218,6 +222,25 @@ byte asm_tokens[64];
 byte asm_numTokens;
 char *sourceLine;
 word lstCount;
+
+void addReference(int ref, word addr, char typ) {
+  if (passNumber == 2 && usedReference >= 0) {
+    numReferences++;
+    if (numReferences == 1) {
+      references = (int*)malloc(sizeof(int));
+      refAddresses = (word*)malloc(sizeof(word));
+      refTypes = (char*)malloc(sizeof(char));
+      }
+    else {
+      references = (int*)realloc(references,sizeof(int)*numReferences);
+      refAddresses = (word*)realloc(refAddresses,sizeof(word)*numReferences);
+      refTypes = (char*)realloc(refTypes,sizeof(char)*numReferences);
+      }
+    references[numReferences-1] = ref;
+    refAddresses[numReferences-1] = addr;
+    refTypes[numReferences-1] = typ;
+    }
+  }
 
 void list(char* message) {
   if (passNumber != 2) return;
@@ -377,6 +400,24 @@ word getLabel(char* label) {
   return 0;
   }
 
+int findLabel(char* label) {
+  int i;
+  if (passNumber == 1) {
+    for (i=0; i<numLabels; i++)
+      if (strcasecmp(label, labels[i]) == 0)
+        return i;
+    return 0;
+    }
+  for (i=0; i<numLabels; i++)
+    if (strcasecmp(label, labels[i]) == 0) {
+      return i;
+      }
+  printf("***ERROR: Label not found: %s\n",label);
+  printf("%s\n",sourceLine);
+  errors++;
+  return -1;
+  }
+
 void setLabel(char* label, word value) {
   int i;
   for (i=0; i<numLabels; i++)
@@ -386,6 +427,13 @@ void setLabel(char* label, word value) {
       }
   printf("***ERROR: Label not found: %s\n",label);
   errors++;
+  }
+
+int isExternal(int v) {
+  int i;
+  for (i=0; i<numExternals; i++)
+    if (externals[i] == v) return v;
+  return -1;
   }
 
 void writeOutput() {
@@ -566,13 +614,13 @@ char* asm_convertNumber(char* buffer, dword* value, byte* success) {
 
 
 char* asm_evaluate(char *pos) {
+  int i;
   int numbers[256];
   byte ops[256];
   int  nstack;
   int  ostack;
   int  op;
   int  flag;
-  int  neg;
   int  p;
   char term;
   byte success;
@@ -581,6 +629,7 @@ char* asm_evaluate(char *pos) {
   nstack = 0;
   ostack = 0;
   op = 0;
+  usedReference = -1;
   while (*pos  != 0 && op != OP_END) {
 
     flag = -1;
@@ -636,6 +685,10 @@ char* asm_evaluate(char *pos) {
             numbers[nstack++] = getLabel(token);
             term = -1;
             pos--;
+            i = findLabel(token);
+            if (i >= 0)
+              usedReference = isExternal(i);
+              if (usedReference >= 0) referenceType = 'W';
             }
           }
         if (term == 0) { printf("Non-number found\n"); return 0; }
@@ -705,11 +758,23 @@ char* asm_evaluate(char *pos) {
           case OP_LTE : numbers[nstack-1] = (numbers[nstack-1] <= numbers[nstack]); break;
           case OP_GTE : numbers[nstack-1] = (numbers[nstack-1] >= numbers[nstack]); break;
           case OP_ABS : numbers[nstack]   = abs(numbers[nstack]); break;
-          case OP_HIGH: numbers[nstack]   = (numbers[nstack] >> 8) & 0xff; break;
-          case OP_LOW : numbers[nstack]   = numbers[nstack] & 0xff; break;
+          case OP_HIGH:
+               numbers[nstack]   = (numbers[nstack] >> 8) & 0xff;
+               referenceType = 'H';
+               break;
+          case OP_LOW :
+               numbers[nstack]   = numbers[nstack] & 0xff;
+               referenceType = 'L';
+               break;
           case OP_DOT :
-               if (numbers[nstack] & 1) numbers[nstack-1] = (numbers[nstack-1] >> 8) & 0xff;
-                 else numbers[nstack-1] = numbers[nstack-1] & 0xff;
+               if (numbers[nstack] & 1) {
+                 numbers[nstack-1] = (numbers[nstack-1] >> 8) & 0xff;
+                 referenceType = 'H';
+                 }
+               else {
+                 numbers[nstack-1] = numbers[nstack-1] & 0xff;
+                 referenceType = 'L';
+                 }
                break;
           case OP_SGN:
                if (numbers[nstack] > 0) numbers[nstack] = 1;
@@ -781,8 +846,27 @@ void processDb(char* args,char typ) {
     else {
       args = asm_evaluate(args);
       num = asm_numStack[0];
-      if (typ == 'B') output(num & 0xff);
+      if (typ == 'B') {
+        output(num & 0xff);
+        }
       else if (typ == 'W') {
+        if (passNumber == 2 && usedReference >= 0)
+          addReference(usedReference, address, referenceType);
+//          numReferences++;
+//          if (numReferences == 1) {
+//            references = (int*)malloc(sizeof(int));
+//            refAddresses = (word*)malloc(sizeof(word));
+//            refTypes = (char*)malloc(sizeof(char));
+//            }
+//          else {
+//            references = (int*)realloc(references,sizeof(int)*numReferences);
+//            refAddresses = (word*)realloc(refAddresses,sizeof(word)*numReferences);
+//            refTypes = (char*)realloc(refTypes,sizeof(char)*numReferences);
+//            }
+//          references[numReferences-1] = usedReference;
+//          refAddresses[numReferences-1] = address;
+//          refTypes[numReferences-1] = referenceType;
+//          }
         output(((num & 0x0000FF00) >> 8) & 0xff);
         output(num & 0xff);
         }
@@ -937,6 +1021,7 @@ void Asm(char* line) {
   byte  b;
   byte valid;
   char  lst[1024];
+  usedReference = -1;
   for (i=0; i<numDefines; i++) {
     lpos = line;
     if (strncasecmp(line,"#define ",8) == 0) {
@@ -1283,6 +1368,10 @@ void Asm(char* line) {
         case OT_1ARG:
              output(opcodes[pos].byte1);
              output(processArgs(args) & 0xff);
+             if (passNumber == 2 && usedReference >= 0) {
+               if (referenceType == 'W') referenceType = 'L';
+               addReference(usedReference, address-1, referenceType);
+               }
              break;
         case OT_SBR:
              output(opcodes[pos].byte1);
@@ -1316,6 +1405,8 @@ void Asm(char* line) {
         case OT_LBR:
              value = processArgs(args);
              output(opcodes[pos].byte1);
+             if (passNumber == 2 && usedReference >= 0)
+               addReference(usedReference, address, referenceType);
              output(value/256);
              output(value%256);
              break;
@@ -1368,6 +1459,31 @@ void Asm(char* line) {
         case OT_END:
              if (passNumber == 1) {
                execAddr = processArgs(args) & 0xffff;
+               }
+             break;
+        case OT_PUBLIC:
+             if (passNumber == 2) {
+               i = findLabel(args);
+               if (i >= 0) {
+                 numPublics++;
+                 if (numPublics == 1)
+                   publics = (int*)malloc(sizeof(int));
+                 else
+                   publics = (int*)realloc(publics,sizeof(int)*numPublics);
+                 publics[numPublics-1] = i;
+                 }
+               }
+             break;
+        case OT_EXTRN:
+             if (passNumber == 1) {
+               addLabel(args, 0);
+               i = findLabel(args);
+               numExternals++;
+               if (numExternals == 1)
+                 externals = (int*)malloc(sizeof(int));
+               else
+                 externals = (int*)realloc(externals,sizeof(int)*numExternals);
+               externals[numExternals-1] = i;
                }
              break;
         default:
@@ -1516,6 +1632,10 @@ int pass(int p) {
         printf("Could not open output file: %s\n",outName);
         exit(1);
         }
+      if (outMode == 'R') {
+        sprintf(buffer,".big\n");
+        write(outFile, buffer, strlen(buffer));
+        }
       }
     if (createLst) lstFile = fopen(lstName,"w");
     }
@@ -1530,7 +1650,22 @@ int pass(int p) {
     //write EOF before closing intel hex file
     if (outMode == 'I') {
       write(outFile, ":00000001ff\n", 12);
-    }
+      }
+    if (outMode == 'R') {
+      for (i=0; i<numPublics; i++) {
+        sprintf(buffer,"=%s %04x\n",labels[publics[i]], labelValues[publics[i]]);
+        write(outFile, buffer, strlen(buffer));
+        }
+      for (i=0; i<numReferences; i++) {
+        if (refTypes[i] == 'W')
+          sprintf(buffer,"?%s %04x\n",labels[references[i]], refAddresses[i]);
+        if (refTypes[i] == 'H')
+          sprintf(buffer,"/%s %04x\n",labels[references[i]], refAddresses[i]);
+        if (refTypes[i] == 'L')
+          sprintf(buffer,"\\%s %04x\n",labels[references[i]], refAddresses[i]);
+        write(outFile, buffer, strlen(buffer));
+        }
+      }
     close(outFile); 
   }
   if (passNumber == 2 && createLst) fclose(lstFile);
@@ -1605,6 +1740,10 @@ int main(int argc, char** argv) {
   addLabel("re",14);
   addLabel("rf",15);
 
+  numPublics = 0;
+  numExternals = 0;
+  numReferences = 0;
+
   for (i=0; i<argc; i++) {
     if (strncmp(argv[i],"-D",2) == 0) {
       addDefine(argv[i]+2,"1",0);
@@ -1639,8 +1778,11 @@ int main(int argc, char** argv) {
 
   if (showSymbols) {
     printf("Symbols:\n");
-    for (i=22; i<numLabels; i++)
-      printf("  %04x  %s\n",labelValues[i],labels[i]);
+    for (i=22; i<numLabels; i++) {
+      printf("  %04x  %s",labelValues[i],labels[i]);
+      if (isExternal(i) >= 0) printf(" *");
+      printf("\n");
+      }
     }
 
   return 0;
