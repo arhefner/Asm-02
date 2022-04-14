@@ -1006,6 +1006,8 @@ void Asm(char* line) {
   char  opcode[32];
   char  args[128];
   word  operands[32];
+  char  operandsEType[32];
+  int   operandsERef[32];
   byte  isreg[32];
   char  *opline;
   int   opcount;
@@ -1286,6 +1288,11 @@ void Asm(char* line) {
         isreg[opcount] = isRReg(opline);
         opline = asm_evaluate(opline);
         operands[opcount++] = asm_numStack[0];
+        operandsEType[opcount-1] = ' ';
+        if (usedReference >= 0) {
+          operandsEType[opcount-1] = referenceType;
+          operandsERef[opcount-1] = usedReference;
+          }
         opline = trim(opline);
         if (*opline != 0 && *opline != ',') {
           printf("ERROR: Invalid operand list: %s\n",orig);
@@ -1343,6 +1350,9 @@ void Asm(char* line) {
           i++;
           if (valid) output(b);
           c = translation[macro][i] - '1';
+          if (operandsEType[c] != ' ') {
+            addReference(operandsERef[c], address, 'L');
+            }
           if (c >= 0 && c<= 9) b = (operands[c] & 0xff);
           valid = 0xff;
           }
@@ -1350,6 +1360,9 @@ void Asm(char* line) {
           i++;
           if (valid) output(b);
           c = translation[macro][i] - '1';
+          if (operandsEType[c] != ' ') {
+            addReference(operandsERef[c], address, 'H');
+            }
           b = ((operands[c] >> 8) & 0xff);
           valid = 0xff;
           }
@@ -1607,7 +1620,7 @@ void processOption(char* option) {
     if (strncmp(option,"-rom=",5) == 0) processROM(option+5);
   }
 
-int pass(int p) {
+int pass(int p, char* sourceFile) {
   int i;
   char buffer[256];
   FILE* inFile;
@@ -1652,6 +1665,10 @@ int pass(int p) {
       write(outFile, ":00000001ff\n", 12);
       }
     if (outMode == 'R') {
+      if (execAddr != 0xffff) {
+        sprintf(buffer,"@%04x\n",execAddr);
+        write(outFile, buffer, strlen(buffer));
+        }
       for (i=0; i<numPublics; i++) {
         sprintf(buffer,"=%s %04x\n",labels[publics[i]], labelValues[publics[i]]);
         write(outFile, buffer, strlen(buffer));
@@ -1680,43 +1697,14 @@ int pass(int p) {
   return 0;
   }
 
-int main(int argc, char** argv) {
-  int i;
-  createLst = 0;
-  outMode = 'R';
-  ramStart = 0x0000;
-  ramEnd = 0xffff;
-  romStart = 0xffff;
-  romEnd = 0xffff;
-  showList = 0;
-  showSymbols = 0;
-  use1805 = 0;
-  useExtended = 0;
+void clear() {
   numDefines = 0;
   numLabels = 0;
   errors = 0;
   numOps = 0;
-  strcpy(lineEnding,"\n");
-  strcpy(sourceFile,"");
-  i = 0;
-  while (i < argc) {
-    if (argv[i][0] != '-') {
-      strcpy(sourceFile, argv[i]);
-      }
-    else processOption(argv[i]);
-    i++;
-    }
-  strcpy(baseName, sourceFile);
-  for (i=0; i<strlen(baseName); i++)
-    if (baseName[i] == '.') baseName[i] = 0;
-  strcpy(outName,baseName);
-  switch (outMode) {
-    case 'R': strcat(outName, ".prg"); break;
-    case 'I': strcat(outName, ".hex"); break;
-    case 'B': strcat(outName, ".bin"); break;
-    }
-  strcpy(lstName,baseName);
-  strcat(lstName,".lst");
+  passNumber = 1;
+  codeGenerated = 0;
+  execAddr = 0xffff;
   addLabel("r0",0);
   addLabel("r1",1);
   addLabel("r2",2);
@@ -1739,17 +1727,32 @@ int main(int argc, char** argv) {
   addLabel("rd",13);
   addLabel("re",14);
   addLabel("rf",15);
-
   numPublics = 0;
   numExternals = 0;
   numReferences = 0;
+  }
+
+void assembleFile(char* sourceFile, int argc, char** argv) {
+  int i;
+  clear();
+  strcpy(baseName, sourceFile);
+  for (i=0; i<strlen(baseName); i++)
+    if (baseName[i] == '.') baseName[i] = 0;
+  strcpy(outName,baseName);
+  switch (outMode) {
+    case 'R': strcat(outName, ".prg"); break;
+    case 'I': strcat(outName, ".hex"); break;
+    case 'B': strcat(outName, ".bin"); break;
+    }
+  strcpy(lstName,baseName);
+  strcat(lstName,".lst");
 
   for (i=0; i<argc; i++) {
     if (strncmp(argv[i],"-D",2) == 0) {
       addDefine(argv[i]+2,"1",0);
       }
     }
-  i = pass(1);
+  i = pass(1, sourceFile);
   numDefines = 0;
   if (i == 0 && errors == 0) {
     for (i=0; i<argc; i++) {
@@ -1757,7 +1760,7 @@ int main(int argc, char** argv) {
         addDefine(argv[i]+2,"1",0);
         }
       }
-    i = pass(2);
+    i = pass(2, sourceFile);
     if (outMode == 'B' && i == 0 && errors == 0) {
       outFile = open(outName,O_CREAT|O_TRUNC|O_WRONLY|O_BINARY,0666);
       if (outFile < 0) {
@@ -1785,5 +1788,46 @@ int main(int argc, char** argv) {
       }
     }
 
+  for (i=0; i<numLabels; i++)
+    free(labels[i]);
+  if (numLabels > 0) {
+    free(labelValues);
+    }
+  }
+
+int main(int argc, char** argv) {
+  int i;
+  createLst = 0;
+  outMode = 'R';
+  ramStart = 0x0000;
+  ramEnd = 0xffff;
+  romStart = 0xffff;
+  romEnd = 0xffff;
+  showList = 0;
+  showSymbols = 0;
+  use1805 = 0;
+  useExtended = 0;
+  numSourceFiles = 0;
+  strcpy(lineEnding,"\n");
+  i = 1;
+  while (i < argc) {
+    if (argv[i][0] != '-') {
+      numSourceFiles++;
+      if (numSourceFiles == 0)
+        sourceFiles = (char**)malloc(sizeof(char*));
+      else
+        sourceFiles = (char**)realloc(sourceFiles,sizeof(char*)*numSourceFiles);
+      sourceFiles[numSourceFiles-1] = (char*)malloc(strlen(argv[i])+1);
+      strcpy(sourceFiles[numSourceFiles-1], argv[i]);
+      }
+    else processOption(argv[i]);
+    i++;
+    }
+  if (numSourceFiles == 0) {
+    printf("No source files specified\n");
+    exit(1);
+    }
+  for (i=0; i<numSourceFiles; i++)
+    assembleFile(sourceFiles[i], argc, argv);
   return 0;
   }
