@@ -48,6 +48,8 @@ Pseudo ops:
   org expr      - Set assembly address
   push reg      - Push 16-bit R-register
   pop  rg       - Pop 16-bit R-register
+  proc label    - Begin relocatable procedure
+  endp          - End of relocatable procedure
 
 Sample opcode macros:
 .op "PUSH","N","9$1 73 8$1 73"

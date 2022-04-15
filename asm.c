@@ -34,6 +34,8 @@ typedef struct {
 #define OT_MACRO  19
 #define OT_PUBLIC 20
 #define OT_EXTRN  21
+#define OT_PROC   22
+#define OT_ENDP   23
 
 #define OP_LOW  0x94
 #define OP_HIGH 0x93
@@ -213,6 +215,8 @@ OPCODE opcodes[] = {
   { "end",   OT_END,    0x00  },
   { "public",OT_PUBLIC, 0x00  },
   { "extrn", OT_EXTRN,  0x00  },
+  { "proc",  OT_PROC,   0x00  },
+  { "endp",  OT_ENDP,   0x00  },
   { "",      0,         0     },
   };
 
@@ -222,25 +226,6 @@ byte asm_tokens[64];
 byte asm_numTokens;
 char *sourceLine;
 word lstCount;
-
-void addReference(int ref, word addr, char typ) {
-  if (passNumber == 2 && usedReference >= 0) {
-    numReferences++;
-    if (numReferences == 1) {
-      references = (int*)malloc(sizeof(int));
-      refAddresses = (word*)malloc(sizeof(word));
-      refTypes = (char*)malloc(sizeof(char));
-      }
-    else {
-      references = (int*)realloc(references,sizeof(int)*numReferences);
-      refAddresses = (word*)realloc(refAddresses,sizeof(word)*numReferences);
-      refTypes = (char*)realloc(refTypes,sizeof(char)*numReferences);
-      }
-    references[numReferences-1] = ref;
-    refAddresses[numReferences-1] = addr;
-    refTypes[numReferences-1] = typ;
-    }
-  }
 
 void list(char* message) {
   if (passNumber != 2) return;
@@ -363,7 +348,8 @@ void addLabel(char* label, word value) {
   int i;
   if (passNumber == 2) return;
   for (i=0; i<numLabels; i++)
-    if (strcasecmp(label, labels[i]) == 0) {
+    if (strcasecmp(label, labels[i]) == 0 &&
+        strcasecmp(module, labelProcs[i]) == 0) {
       printf("***ERROR: Duplicate label: %s\n",label);
       errors++;
       return;
@@ -372,13 +358,17 @@ void addLabel(char* label, word value) {
   if (numLabels == 1) {
     labels = (char**)malloc(sizeof(char*));
     labelValues = (word*)malloc(sizeof(word));
+    labelProcs = (char**)malloc(sizeof(char*));
     }
   else {
     labels = (char**)realloc(labels, sizeof(char*) * numLabels);
     labelValues = (word*)realloc(labelValues, sizeof(word) * numLabels);
+    labelProcs = (char**)realloc(labelProcs, sizeof(char*) * numLabels);
     }
   labels[numLabels-1] = (char*)malloc(strlen(label) + 1);
   strcpy(labels[numLabels-1], label);
+  labelProcs[numLabels-1] = (char*)malloc(strlen(module) + 1);
+  strcpy(labelProcs[numLabels-1], module);
   labelValues[numLabels-1] = value;
   }
 
@@ -386,12 +376,17 @@ word getLabel(char* label) {
   int i;
   if (passNumber == 1) {
     for (i=0; i<numLabels; i++)
-      if (strcasecmp(label, labels[i]) == 0)
+      if (strcasecmp(label, labels[i]) == 0 &&
+          (strcasecmp(module, labelProcs[i]) == 0 ||
+           strcasecmp(" ", labelProcs[i]) == 0)) {
         return labelValues[i];
+        }
     return 0;
     }
   for (i=0; i<numLabels; i++)
-    if (strcasecmp(label, labels[i]) == 0) {
+    if (strcasecmp(label, labels[i]) == 0 &&
+        (strcasecmp(module, labelProcs[i]) == 0 ||
+         strcasecmp(" ", labelProcs[i]) == 0)) {
       return labelValues[i];
       }
   printf("***ERROR: Label not found: %s\n",label);
@@ -404,12 +399,17 @@ int findLabel(char* label) {
   int i;
   if (passNumber == 1) {
     for (i=0; i<numLabels; i++)
-      if (strcasecmp(label, labels[i]) == 0)
+      if (strcasecmp(label, labels[i]) == 0 &&
+          (strcasecmp(module, labelProcs[i]) == 0 ||
+           strcasecmp(" ", labelProcs[i]) == 0)) {
         return i;
+        }
     return 0;
     }
   for (i=0; i<numLabels; i++)
-    if (strcasecmp(label, labels[i]) == 0) {
+    if (strcasecmp(label, labels[i]) == 0 &&
+          (strcasecmp(module, labelProcs[i]) == 0 ||
+           strcasecmp(" ", labelProcs[i]) == 0)) {
       return i;
       }
   printf("***ERROR: Label not found: %s\n",label);
@@ -630,6 +630,7 @@ char* asm_evaluate(char *pos) {
   ostack = 0;
   op = 0;
   usedReference = -1;
+  usedLocal = -1;
   while (*pos  != 0 && op != OP_END) {
 
     flag = -1;
@@ -689,6 +690,10 @@ char* asm_evaluate(char *pos) {
             if (i >= 0)
               usedReference = isExternal(i);
               if (usedReference >= 0) referenceType = 'W';
+              else if (inProc != 0 && strcasecmp(labelProcs[i],module) == 0) {
+                 usedLocal = -1;
+                 referenceType = 'W';
+                 }
             }
           }
         if (term == 0) { printf("Non-number found\n"); return 0; }
@@ -817,6 +822,7 @@ dword processArgs(char* args) {
 
 void processDb(char* args,char typ) {
   dword num;
+  char buffer[256];
   args = trim(args);
   while (*args != 0) {
     if (*args == '\'' && *(args+2) != '\'') {
@@ -850,23 +856,10 @@ void processDb(char* args,char typ) {
         output(num & 0xff);
         }
       else if (typ == 'W') {
-        if (passNumber == 2 && usedReference >= 0)
-          addReference(usedReference, address, referenceType);
-//          numReferences++;
-//          if (numReferences == 1) {
-//            references = (int*)malloc(sizeof(int));
-//            refAddresses = (word*)malloc(sizeof(word));
-//            refTypes = (char*)malloc(sizeof(char));
-//            }
-//          else {
-//            references = (int*)realloc(references,sizeof(int)*numReferences);
-//            refAddresses = (word*)realloc(refAddresses,sizeof(word)*numReferences);
-//            refTypes = (char*)realloc(refTypes,sizeof(char)*numReferences);
-//            }
-//          references[numReferences-1] = usedReference;
-//          refAddresses[numReferences-1] = address;
-//          refTypes[numReferences-1] = referenceType;
-//          }
+        if (passNumber == 2 && usedReference >= 0) {
+          sprintf(buffer,"?%s %04x\n",labels[usedReference],address);
+          write(outFile, buffer, strlen(buffer));
+          }
         output(((num & 0x0000FF00) >> 8) & 0xff);
         output(num & 0xff);
         }
@@ -1351,7 +1344,8 @@ void Asm(char* line) {
           if (valid) output(b);
           c = translation[macro][i] - '1';
           if (operandsEType[c] != ' ') {
-            addReference(operandsERef[c], address, 'L');
+            sprintf(buffer,"\\%s %04x\n",labels[operandsERef[c]],address);
+            write(outFile, buffer, strlen(buffer));
             }
           if (c >= 0 && c<= 9) b = (operands[c] & 0xff);
           valid = 0xff;
@@ -1361,7 +1355,8 @@ void Asm(char* line) {
           if (valid) output(b);
           c = translation[macro][i] - '1';
           if (operandsEType[c] != ' ') {
-            addReference(operandsERef[c], address, 'H');
+            sprintf(buffer,"/%s %04x\n",labels[operandsERef[c]],address);
+            write(outFile, buffer, strlen(buffer));
             }
           b = ((operands[c] >> 8) & 0xff);
           valid = 0xff;
@@ -1382,8 +1377,16 @@ void Asm(char* line) {
              output(opcodes[pos].byte1);
              output(processArgs(args) & 0xff);
              if (passNumber == 2 && usedReference >= 0) {
-               if (referenceType == 'W') referenceType = 'L';
-               addReference(usedReference, address-1, referenceType);
+               if (referenceType == 'W' || referenceType == 'L')
+                 sprintf(buffer,"\\%s %04x\n",labels[usedReference],address-1);
+               else
+                 sprintf(buffer,"/%s %04x\n",labels[usedReference],address-1);
+               write(outFile, buffer, strlen(buffer));
+               }
+             if (passNumber == 2 && usedLocal != 0) {
+               fixups[numFixups] = address-1;
+               fixupTypes[numFixups] = referenceType;
+               numFixups++;
                }
              break;
         case OT_SBR:
@@ -1408,8 +1411,13 @@ void Asm(char* line) {
              processDs(processArgs(args));
              break;
         case OT_ORG:
-             value = processArgs(args);
-             processOrg(processArgs(args));
+             if (inProc == 0) {
+               value = processArgs(args);
+               processOrg(processArgs(args));
+               }
+             else {
+               printf("!!!WARNING!!! ORG not allowed inside of PROC\n");
+               }
              break;
         case OT_EQU:
              value = processArgs(args);
@@ -1418,8 +1426,15 @@ void Asm(char* line) {
         case OT_LBR:
              value = processArgs(args);
              output(opcodes[pos].byte1);
-             if (passNumber == 2 && usedReference >= 0)
-               addReference(usedReference, address, referenceType);
+             if (passNumber == 2 && usedReference >= 0) {
+               sprintf(buffer,"?%s %04x\n",labels[usedReference],address);
+               write(outFile, buffer, strlen(buffer));
+               }
+             if (passNumber == 2 && usedLocal != 0) {
+               fixups[numFixups] = address;
+               fixupTypes[numFixups] = referenceType;
+               numFixups++;
+               }
              output(value/256);
              output(value%256);
              break;
@@ -1478,12 +1493,10 @@ void Asm(char* line) {
              if (passNumber == 2) {
                i = findLabel(args);
                if (i >= 0) {
-                 numPublics++;
-                 if (numPublics == 1)
-                   publics = (int*)malloc(sizeof(int));
-                 else
-                   publics = (int*)realloc(publics,sizeof(int)*numPublics);
-                 publics[numPublics-1] = i;
+                 if (outMode == 'R') {
+                   sprintf(buffer,"=%s %04x\n",labels[i], labelValues[i]);
+                   write(outFile, buffer, strlen(buffer));
+                   }
                  }
                }
              break;
@@ -1498,6 +1511,50 @@ void Asm(char* line) {
                  externals = (int*)realloc(externals,sizeof(int)*numExternals);
                externals[numExternals-1] = i;
                }
+             break;
+        case OT_PROC:
+             inProc = -1;
+             strcpy(module,args);
+             if (passNumber == 2 && outCount > 0) {
+               writeOutput();    
+               outCount = 0;
+               }
+             address = 0;
+             outAddress = 0;
+             if (passNumber == 1) {
+               addLabel(args, 0);
+               }
+             if (outMode == 'R' && passNumber == 2) {
+               sprintf(buffer,"{%s\n",args);
+               write(outFile, buffer, strlen(buffer));
+               }
+             numFixups = 0;
+             break;
+        case OT_ENDP:
+             if (inProc == 0) {
+               printf("***ERROR: ENDP encountered outside PROC\n");
+               errors++;
+               }
+             if (passNumber == 2 && outCount > 0) {
+               writeOutput();    
+               outCount = 0;
+               outAddress = address;
+               }
+             if (outMode == 'R' && passNumber == 2) {
+               for (i=0; i<numFixups; i++) {
+                 if (fixupTypes[i] == 'W')
+                   sprintf(buffer,"+%04x\n",fixups[i]);
+                 if (fixupTypes[i] == 'H')
+                   sprintf(buffer,"^%04x\n",fixups[i]);
+                 if (fixupTypes[i] == 'L')
+                   sprintf(buffer,"v%04x\n",fixups[i]);
+                 write(outFile, buffer, strlen(buffer));
+                 }
+               sprintf(buffer,"}\n");
+               write(outFile, buffer, strlen(buffer));
+               }
+             inProc = 0;
+             strcpy(module,"*");
              break;
         default:
              printf("***ERROR: Unknown instruction type: %d\n",opcodes[pos].typ);
@@ -1631,8 +1688,10 @@ int pass(int p, char* sourceFile) {
   linesAssembled = 0;
   lineCount[0] = 0;
   numLineCount = 0;
+  numFixups = 0;
   lowAddress = 0xffff;
   highAddress = 0x0000;
+  strcpy(module,"*");
   inFile = fopen(sourceFile,"r");
   if (inFile == NULL) {
     printf("Could not open source file: %s\n",sourceFile);
@@ -1669,19 +1728,6 @@ int pass(int p, char* sourceFile) {
         sprintf(buffer,"@%04x\n",execAddr);
         write(outFile, buffer, strlen(buffer));
         }
-      for (i=0; i<numPublics; i++) {
-        sprintf(buffer,"=%s %04x\n",labels[publics[i]], labelValues[publics[i]]);
-        write(outFile, buffer, strlen(buffer));
-        }
-      for (i=0; i<numReferences; i++) {
-        if (refTypes[i] == 'W')
-          sprintf(buffer,"?%s %04x\n",labels[references[i]], refAddresses[i]);
-        if (refTypes[i] == 'H')
-          sprintf(buffer,"/%s %04x\n",labels[references[i]], refAddresses[i]);
-        if (refTypes[i] == 'L')
-          sprintf(buffer,"\\%s %04x\n",labels[references[i]], refAddresses[i]);
-        write(outFile, buffer, strlen(buffer));
-        }
       }
     close(outFile); 
   }
@@ -1698,13 +1744,20 @@ int pass(int p, char* sourceFile) {
   }
 
 void clear() {
-  numDefines = 0;
+  int i;
+  if (numLabels != 0) {
+    for (i=0; i<numLabels; i++) {
+      free(labels[i]);
+      free(labelProcs[i]);
+      }
+    free(labels);
+    free(labelValues);
+    free(labelProcs);
+    }
   numLabels = 0;
-  errors = 0;
-  numOps = 0;
-  passNumber = 1;
-  codeGenerated = 0;
+  numExternals = 0;
   execAddr = 0xffff;
+  strcpy(module," ");
   addLabel("r0",0);
   addLabel("r1",1);
   addLabel("r2",2);
@@ -1727,13 +1780,16 @@ void clear() {
   addLabel("rd",13);
   addLabel("re",14);
   addLabel("rf",15);
-  numPublics = 0;
-  numExternals = 0;
-  numReferences = 0;
   }
 
 void assembleFile(char* sourceFile, int argc, char** argv) {
   int i;
+  inProc = 0;
+  numDefines = 0;
+  errors = 0;
+  numOps = 0;
+  passNumber = 1;
+  codeGenerated = 0;
   clear();
   strcpy(baseName, sourceFile);
   for (i=0; i<strlen(baseName); i++)
@@ -1782,17 +1838,22 @@ void assembleFile(char* sourceFile, int argc, char** argv) {
   if (showSymbols) {
     printf("Symbols:\n");
     for (i=22; i<numLabels; i++) {
-      printf("  %04x  %s",labelValues[i],labels[i]);
+      printf("  %04x  %-20s %-20s",labelValues[i],labels[i],labelProcs[i]);
       if (isExternal(i) >= 0) printf(" *");
       printf("\n");
       }
     }
 
-  for (i=0; i<numLabels; i++)
-    free(labels[i]);
   if (numLabels > 0) {
+    for (i=0; i<numLabels; i++) {
+      free(labels[i]);
+      free(labelProcs[i]);
+      }
+    free(labels);
     free(labelValues);
+    free(labelProcs);
     }
+  numLabels = 0;
   }
 
 int main(int argc, char** argv) {
@@ -1808,6 +1869,8 @@ int main(int argc, char** argv) {
   use1805 = 0;
   useExtended = 0;
   numSourceFiles = 0;
+  numLabels = 0;
+  numExternals = 0;
   strcpy(lineEnding,"\n");
   i = 1;
   while (i < argc) {
