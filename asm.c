@@ -691,7 +691,7 @@ char* asm_evaluate(char *pos) {
               usedReference = isExternal(i);
               if (usedReference >= 0) referenceType = 'W';
               else if (inProc != 0 && strcasecmp(labelProcs[i],module) == 0) {
-                 usedLocal = -1;
+                 usedLocal = 1;
                  referenceType = 'W';
                  }
             }
@@ -1430,7 +1430,7 @@ void Asm(char* line) {
                sprintf(buffer,"?%s %04x\n",labels[usedReference],address);
                write(outFile, buffer, strlen(buffer));
                }
-             if (passNumber == 2 && usedLocal != 0) {
+             if (passNumber == 2 && usedLocal >= 0) {
                fixups[numFixups] = address;
                fixupTypes[numFixups] = referenceType;
                numFixups++;
