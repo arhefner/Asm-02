@@ -1383,7 +1383,7 @@ void Asm(char* line) {
                  sprintf(buffer,"/%s %04x\n",labels[usedReference],address-1);
                write(outFile, buffer, strlen(buffer));
                }
-             if (passNumber == 2 && usedLocal != 0) {
+             if (passNumber == 2 && usedLocal >= 0) {
                fixups[numFixups] = address-1;
                fixupTypes[numFixups] = referenceType;
                numFixups++;
