@@ -687,13 +687,14 @@ char* asm_evaluate(char *pos) {
             term = -1;
             pos--;
             i = findLabel(token);
-            if (i >= 0)
+            if (i >= 0) {
               usedReference = isExternal(i);
               if (usedReference >= 0) referenceType = 'W';
               else if (inProc != 0 && strcasecmp(labelProcs[i],module) == 0) {
                  usedLocal = 1;
                  referenceType = 'W';
                  }
+              }
             }
           }
         if (term == 0) { printf("Non-number found\n"); return 0; }
