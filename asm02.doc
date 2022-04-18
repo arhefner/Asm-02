@@ -1,6 +1,7 @@
 .1805      - Enable 1805 mode
 .list      - Enable show list
 .sym       - Show symbols
+.link line - Pass 'line' to linker
 .op "opcode","arglist","translation"
    arglist:
      B - byte

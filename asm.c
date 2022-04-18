@@ -1068,6 +1068,15 @@ void Asm(char* line) {
       sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
+    if (strncasecmp(line,".link ",6) == 0) {
+      line += 6;
+      while (*line == ' ' || *line == '\t') line++;
+      if (passNumber == 2 && outMode == 'R') {
+        sprintf(buffer,"%s\n",line);
+        write(outFile, buffer, strlen(buffer));
+        }
+      return;
+      }
     }
   if (strncasecmp(line,"include ", 8) == 0) {
     sprintf(buffer,"#%s",line);
