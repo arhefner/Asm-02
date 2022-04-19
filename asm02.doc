@@ -70,6 +70,11 @@ Sample opcode macros:
 .op "POP","N","60 72 A$1 F0 B$1"
 .op "CALL","W","D4 H1 L1"
 .op "RTN","","D5"
-.op "MOV","NR","9$1 B$2 8$1 A$2"
+.op "MOV","NR","9$2 B$1 8$2 A$1"
 .op "MOV","NW","F8 H2 B$1 F8 L2 A$1"
+.op "SUB16","NR","8$2 52 8$1 F7 A$1 9$2 52 9$1 77 B$1"
+.op "SHL16","N","8$1 FE A$1 9$1 7E B$1"
+.op "SHR16","N","9$1 F6 B$1 8$1 76 A$1"
+.op "ADD16","NW","8$1 FC L2 A$1 9$1 7C H2 B$1"
+.op "SUB16","NW","8$1 FF L2 A$1 9$1 7F H2 B$1"
 
