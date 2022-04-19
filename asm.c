@@ -913,6 +913,7 @@ void processDb(char* args,char typ) {
 void processDs(word arg) {
   address += arg;
   if (passNumber == 2 && outCount > 0) writeOutput();
+  outAddress = address;
   outCount = 0;
   }
 
