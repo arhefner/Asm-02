@@ -1617,11 +1617,11 @@ void Asm(char* line) {
              output(buildDay);
              output((buildYear >> 8) & 0xff);
              output(buildYear & 0xff);
-             output((buildNumber >> 8) & 0xff);
              output(buildNumber & 0xff);
              output(buildHour);
              output(buildMinute);
              output(buildSecond);
+             output((buildNumber >> 8) & 0xff);
              break;
         default:
              printf("***ERROR: Unknown instruction type: %d\n",opcodes[pos].typ);
