@@ -2,6 +2,7 @@
 .list      - Enable show list
 .sym       - Show symbols
 .link line - Pass 'line' to linker
+.suppress  - Suppress further byte output
 .op "opcode","arglist","translation"
    arglist:
      B - byte

@@ -190,6 +190,7 @@ LINK char   showAsm;
 LINK char   showList;
 LINK char   showSymbols;
 LINK char **sourceFiles;
+LINK int    suppression;
 LINK int    numSourceFiles;
 LINK char   use1805;
 LINK byte   useAsm;

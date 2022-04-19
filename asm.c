@@ -504,11 +504,13 @@ void output(byte value) {
       memory[address] = value;
       }
     else {
-      outBuffer[outCount++] = value;
-      if (outCount == 16) {
-        writeOutput();
-        outCount = 0;
-        outAddress = address+1;
+      if (suppression == 0) {
+        outBuffer[outCount++] = value;
+        if (outCount == 16) {
+          writeOutput();
+          outCount = 0;
+          outAddress = address+1;
+          }
         }
       }
     if (createLst != 0 || showList != 0) {
@@ -1257,6 +1259,11 @@ void Asm(char* line) {
     return;
     }
 
+  if (strncasecmp(line,".suppress",9) == 0) {
+    suppression = -1;
+    return;
+    }
+
   asmAddress = address;
   strcpy(label,"");
   strcpy(opcode,"");
@@ -1748,6 +1755,7 @@ int pass(int p, char* sourceFile) {
   int i;
   char buffer[256];
   FILE* inFile;
+  suppression = 0;
   passNumber = p;
   address = 0;
   outCount = 0;
