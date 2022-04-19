@@ -9,6 +9,9 @@
 */
 #define MAIN
 
+#include <time.h>
+#include <sys/time.h>
+
 #include "header.h"
 
 typedef struct {
@@ -36,6 +39,9 @@ typedef struct {
 #define OT_EXTRN  21
 #define OT_PROC   22
 #define OT_ENDP   23
+#define OT_VER    24
+#define OT_EVER   25
+#define OT_EEVER  26
 
 #define OP_LOW  0x94
 #define OP_HIGH 0x93
@@ -217,6 +223,9 @@ OPCODE opcodes[] = {
   { "extrn", OT_EXTRN,  0x00  },
   { "proc",  OT_PROC,   0x00  },
   { "endp",  OT_ENDP,   0x00  },
+  { "ver",   OT_VER,    0x00  },
+  { "ever",  OT_EVER,   0x00  },
+  { "eever", OT_EEVER,  0x00  },
   { "",      0,         0     },
   };
 
@@ -662,6 +671,34 @@ char* asm_evaluate(char *pos) {
         pos += 2;
         flag = -1;
         }
+      else if (strncasecmp(pos, "[month]", 7) == 0) {
+        pos += 6;
+        numbers[nstack++] = buildMonth;
+        }
+      else if (strncasecmp(pos, "[day]", 5) == 0) {
+        pos += 4;
+        numbers[nstack++] = buildDay;
+        }
+      else if (strncasecmp(pos, "[year]", 6) == 0) {
+        pos += 5;
+        numbers[nstack++] = buildYear;
+        }
+      else if (strncasecmp(pos, "[hour]", 6) == 0) {
+        pos += 5;
+        numbers[nstack++] = buildHour;
+        }
+      else if (strncasecmp(pos, "[minute]", 8) == 0) {
+        pos += 7;
+        numbers[nstack++] = buildMinute;
+        }
+      else if (strncasecmp(pos, "[second]", 8) == 0) {
+        pos += 7;
+        numbers[nstack++] = buildSecond;
+        }
+      else if (strncasecmp(pos, "[build]", 7) == 0) {
+        pos += 6;
+        numbers[nstack++] = buildNumber;
+        }
 
       else {
         term = 0;
@@ -837,12 +874,6 @@ void processDb(char* args,char typ) {
       while (*args != 0 && *args != '"')
         output(*args++);
       if (*args == '"') args++;
-      }
-    else if (*args == '[') {
-      args++;
-      while (*args != 0 && *args != ']')
-        output(*args++);
-      if (*args == ']') args++;
       }
     else if (*args == '{') {
       args++;
@@ -1566,6 +1597,31 @@ void Asm(char* line) {
              inProc = 0;
              strcpy(module,"*");
              break;
+        case OT_VER:
+             output(buildMonth);
+             output(buildDay);
+             output((buildYear >> 8) & 0xff);
+             output(buildYear & 0xff);
+             break;
+        case OT_EVER:
+             output(buildMonth | 0x80);
+             output(buildDay);
+             output((buildYear >> 8) & 0xff);
+             output(buildYear & 0xff);
+             output((buildNumber >> 8) & 0xff);
+             output(buildNumber & 0xff);
+             break;
+        case OT_EEVER:
+             output(buildMonth | 0xc0);
+             output(buildDay);
+             output((buildYear >> 8) & 0xff);
+             output(buildYear & 0xff);
+             output((buildNumber >> 8) & 0xff);
+             output(buildNumber & 0xff);
+             output(buildHour);
+             output(buildMinute);
+             output(buildSecond);
+             break;
         default:
              printf("***ERROR: Unknown instruction type: %d\n",opcodes[pos].typ);
              errors++;
@@ -1794,6 +1850,8 @@ void clear() {
 
 void assembleFile(char* sourceFile, int argc, char** argv) {
   int i;
+  char tmp[1024];
+  FILE *buildFile;
   inProc = 0;
   numDefines = 0;
   errors = 0;
@@ -1812,6 +1870,22 @@ void assembleFile(char* sourceFile, int argc, char** argv) {
     }
   strcpy(lstName,baseName);
   strcat(lstName,".lst");
+
+  strcpy(tmp, baseName);
+  strcat(tmp,".build");
+  buildFile = fopen(tmp, "r");
+  if (buildFile == NULL) {
+    buildNumber = 1;
+    }
+  else {
+    fgets(buffer, 32, buildFile);
+    buildNumber = atoi(buffer) + 1;
+    fclose(buildFile);
+    }
+  buildFile = fopen(tmp,"w");
+  fprintf(buildFile,"%d\n",buildNumber);
+  fclose(buildFile);
+  
 
   for (i=0; i<argc; i++) {
     if (strncmp(argv[i],"-D",2) == 0) {
@@ -1868,6 +1942,8 @@ void assembleFile(char* sourceFile, int argc, char** argv) {
 
 int main(int argc, char** argv) {
   int i;
+  time_t tv;
+  struct tm dt;
   createLst = 0;
   outMode = 'R';
   ramStart = 0x0000;
@@ -1882,6 +1958,14 @@ int main(int argc, char** argv) {
   numLabels = 0;
   numExternals = 0;
   strcpy(lineEnding,"\n");
+  tv = time(NULL);
+  localtime_r(&tv, &dt);
+  buildMonth = dt.tm_mon + 1;
+  buildDay = dt.tm_mday;
+  buildYear = dt.tm_year + 1900;
+  buildHour = dt.tm_hour;
+  buildMinute = dt.tm_min;
+  buildSecond = dt.tm_sec;
   i = 1;
   while (i < argc) {
     if (argv[i][0] != '-') {

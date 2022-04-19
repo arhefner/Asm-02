@@ -27,6 +27,15 @@ Command line switches:
   -ram=low-high - Set explicit RAM region
   -rom=how-high - Set explicit ROM region
 
+Evaluator variables:
+[month]         - Build month
+[day]           - Build day
+[year]          - Build year
+[hour]          - Build hour
+[minute]        - Build minute
+[second]        - Build second
+[build]         - Build number
+
 Preprocessor:
   #include filename
   #define symbol value
