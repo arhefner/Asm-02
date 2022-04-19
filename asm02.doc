@@ -61,6 +61,9 @@ Pseudo ops:
   pop  rg       - Pop 16-bit R-register
   proc label    - Begin relocatable procedure
   endp          - End of relocatable procedure
+  ver           - Build standard Elf/OS VER header
+  ever          - Build extended Elf/OS VER header
+  eever         - Build enhanced Elf/OS VER header
 
 Sample opcode macros:
 .op "PUSH","N","9$1 73 8$1 73"
