@@ -196,6 +196,9 @@ LINK char   use1805;
 LINK byte   useAsm;
 LINK byte   useExtended;
 
+LINK FILE  *sourceFile[100];
+LINK int    lineNumber[100];
+LINK int    fileNumber;
 
 
 

@@ -77,4 +77,6 @@ Sample opcode macros:
 .op "SHR16","N","9$1 F6 B$1 8$1 76 A$1"
 .op "ADD16","NW","8$1 FC L2 A$1 9$1 7C H2 B$1"
 .op "SUB16","NW","8$1 FF L2 A$1 9$1 7F H2 B$1"
+.op "CLC","","fc 00"
+.op "STC","","ff 00"
 
