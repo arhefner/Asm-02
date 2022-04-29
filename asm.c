@@ -1390,6 +1390,15 @@ void Asm(char* line) {
           }
         if (c == 'l' || c == 'L') {
           i++;
+           if (passNumber == 2 && usedReference >= 0) {
+             sprintf(buffer,"?%s %04x\n",labels[usedReference],address);
+             write(outFile, buffer, strlen(buffer));
+             }
+           if (passNumber == 2 && usedLocal >= 0) {
+             fixups[numFixups] = address;
+             fixupTypes[numFixups] = 'L';
+             numFixups++;
+             }
           if (valid) output(b);
           c = translation[macro][i] - '1';
           if (operandsEType[c] != ' ') {
@@ -1401,6 +1410,15 @@ void Asm(char* line) {
           }
         if (c == 'h' || c == 'H') {
           i++;
+           if (passNumber == 2 && usedReference >= 0) {
+             sprintf(buffer,"?%s %04x\n",labels[usedReference],address);
+             write(outFile, buffer, strlen(buffer));
+             }
+           if (passNumber == 2 && usedLocal >= 0) {
+             fixups[numFixups] = address;
+             fixupTypes[numFixups] = 'H';
+             numFixups++;
+             }
           if (valid) output(b);
           c = translation[macro][i] - '1';
           if (operandsEType[c] != ' ') {
