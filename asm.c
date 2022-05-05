@@ -42,6 +42,7 @@ typedef struct {
 #define OT_VER    24
 #define OT_EVER   25
 #define OT_EEVER  26
+#define OT_DF     27
 
 #define OP_LOW  0x94
 #define OP_HIGH 0x93
@@ -119,6 +120,7 @@ OPCODE opcodes[] = {
   { "br",    OT_SBR,    BR    },
   { "bz",    OT_SBR,    BZ    },
   { "db",    OT_DB,     'B'   },
+  { "df",    OT_DF,     0     },
   { "dw",    OT_DB,     'W'   },
   { "dd",    OT_DB,     'D'   },
   { "ds",    OT_DS,     0     },
@@ -912,6 +914,32 @@ void processDb(char* args,char typ) {
     }
   }
 
+void processDf(char* args) {
+  dword num;
+  char buffer[256];
+  int  pos;
+  FTOI ftoi;
+  args = trim(args);
+  while (*args != 0) {
+    pos = 0;
+    while (*args > ' ' && *args != ',' && *args != ';') {
+      buffer[pos++] = *args++;
+      }
+    buffer[pos] = 0;
+    ftoi.f = atof(buffer);
+    num = ftoi.i;
+    output(((num & 0xff000000) >> 24) & 0xff);
+    output(((num & 0x00ff0000) >> 16) & 0xff);
+    output(((num & 0x0000FF00) >> 8) & 0xff);
+    output(num & 0xff);
+    args = trim(args);
+    if (*args == ',') {
+      args++;
+      args = trim(args);
+      }
+    }
+  }
+
 void processDs(word arg) {
   address += arg;
   if (passNumber == 2 && outCount > 0) writeOutput();
@@ -1530,6 +1558,9 @@ void Asm(char* line) {
              break;
         case OT_DB:
              processDb(args,opcodes[pos].byte1);
+             break;
+        case OT_DF:
+             processDf(args);
              break;
         case OT_DS:
              processDs(processArgs(args));

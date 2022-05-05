@@ -122,6 +122,11 @@ typedef unsigned char byte;
 typedef unsigned short word;
 typedef unsigned int   dword;
 
+typedef union {
+  float f;
+  dword i;
+  } FTOI;
+
 LINK char** defines;
 LINK char** defineValues;
 LINK int    numDefines;

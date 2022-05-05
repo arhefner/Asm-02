@@ -64,6 +64,7 @@ Pseudo ops:
   db  bb,bb,... - Define bytes
   dw  ww,ww,... - Define words
   dd  dd,dd,... - Define double words
+  df  ff,ff,... - Define floating point data
   ds  ww        - Define storage
   equ expr      - Set label to value
   org expr      - Set assembly address
