@@ -1,8 +1,18 @@
-.1805      - Enable 1805 mode
-.list      - Enable show list
-.sym       - Show symbols
-.link line - Pass 'line' to linker
-.suppress  - Suppress further byte output
+.1805       - Enable 1805 mode
+.arch=elf2k - Set Elf2000 memory model
+.arch=mchi  - Set Membership Card high-RAM memory model
+.arch=mchip - Set MemberCHIP card memory model
+.arch=mclo  - Set Membership Card low-RAM memory model
+.arch=melf  - Set Micro/Elf memory model
+.arch=pev   - Set Pico/Elf memory model
+.arch=pev2  - Set Pico/Elf V2 memory model
+.binary     - Output as binary
+.intel      - Output as Intel hex
+.list       - Enable show list
+.rcs        - Output as Rcs hex
+.sym        - Show symbols
+.link line  - Pass 'line' to linker
+.suppress   - Suppress further byte output
 .op "opcode","arglist","translation"
    arglist:
      B - byte
@@ -57,8 +67,6 @@ Pseudo ops:
   ds  ww        - Define storage
   equ expr      - Set label to value
   org expr      - Set assembly address
-  push reg      - Push 16-bit R-register
-  pop  rg       - Pop 16-bit R-register
   proc label    - Begin relocatable procedure
   endp          - End of relocatable procedure
   ver           - Build standard Elf/OS VER header

@@ -1102,6 +1102,63 @@ void Asm(char* line) {
       sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
+    if (strncasecmp(line,".intel",6) == 0) {
+      outMode = 'I';
+      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
+      return;
+      }
+    if (strncasecmp(line,".rcs",4) == 0) {
+      outMode = 'R';
+      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
+      return;
+      }
+    if (strncasecmp(line,".binary",7) == 0) {
+      outMode = 'B';
+      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
+      return;
+      }
+    if (strncasecmp(line,".arch=melf",10) == 0) {
+      ramStart = 0x0000;
+      ramEnd = 0x7fff;
+      romStart = 0x8000;
+      romEnd = 0xffff;
+      }
+    if (strncasecmp(line,".arch=pev",9) == 0) {
+      ramStart = 0x0000;
+      ramEnd = 0x7fff;
+      romStart = 0x8000;
+      romEnd = 0xffff;
+      }
+    if (strncasecmp(line,".arch=pev2",10) == 0) {
+      ramStart = 0x0000;
+      ramEnd = 0x7fff;
+      romStart = 0x8000;
+      romEnd = 0xffff;
+      }
+    if (strncasecmp(line,".arch=elf2k",11) == 0) {
+      ramStart = 0x0000;
+      ramEnd = 0x7fff;
+      romStart = 0x8000;
+      romEnd = 0xffff;
+      }
+    if (strncasecmp(line,".arch=mclo",10) == 0) {
+      ramStart = 0x0000;
+      ramEnd = 0x7fff;
+      romStart = 0x8000;
+      romEnd = 0xffff;
+      }
+    if (strncasecmp(line,".arch=mchi",10) == 0) {
+      ramStart = 0x8000;
+      ramEnd = 0xffff;
+      romStart = 0x0000;
+      romEnd = 0x7fff;
+      }
+    if (strncasecmp(line,".arch=mchip",11) == 0) {
+      ramStart = 0x8000;
+      ramEnd = 0xffff;
+      romStart = 0x0000;
+      romEnd = 0x7fff;
+      }
     if (strncasecmp(line,".link ",6) == 0) {
       line += 6;
       while (*line == ' ' || *line == '\t') line++;
