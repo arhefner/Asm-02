@@ -2056,6 +2056,7 @@ void assembleFile(char* sourceFile, int argc, char** argv) {
     free(labelValues);
     free(labelProcs);
     }
+  if (errors > 0) exit(1);
   numLabels = 0;
   }
 
@@ -2105,5 +2106,6 @@ int main(int argc, char** argv) {
     }
   for (i=0; i<numSourceFiles; i++)
     assembleFile(sourceFiles[i], argc, argv);
+  if (errors > 0) return 1;
   return 0;
   }
