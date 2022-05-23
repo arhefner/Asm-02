@@ -233,7 +233,7 @@ dword asm_numStack[256];
 word asm_nstackSize;
 byte asm_tokens[64];
 byte asm_numTokens;
-char *sourceLine;
+char sourceLine[1024];
 word lstCount;
 
 void list(char* message) {
@@ -1049,6 +1049,7 @@ void Asm(char* line) {
   byte valid;
   char  lst[1024];
   usedReference = -1;
+  strcpy(sourceLine, line);
   for (i=0; i<numDefines; i++) {
     lpos = line;
     if (strncasecmp(line,"#define ",8) == 0) {
@@ -1074,10 +1075,9 @@ void Asm(char* line) {
       else lpos++;
       }
     }
-  orig = line;
+  orig = sourceLine;
 
 
-  sourceLine = line;
   if (*line == '.') {
     if (strncasecmp(line,".1805",5) == 0) {
       use1805 = 0xff;
@@ -1199,7 +1199,7 @@ void Asm(char* line) {
       return;
       }
     if (strncasecmp(line,"#ifdef",6) == 0) {
-      line += 6;
+      line = orig+6;
       line = trim(line);
       pos = 0;
       while (*line != 0 && *line > ' ') label[pos++] = *line++;
@@ -1215,7 +1215,7 @@ void Asm(char* line) {
       return;
       }
     if (strncasecmp(line,"#ifndef",7) == 0) {
-      line += 7;
+      line = orig+7;
       line = trim(line);
       pos = 0;
       while (*line != 0 && *line > ' ') label[pos++] = *line++;
