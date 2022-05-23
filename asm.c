@@ -738,7 +738,11 @@ char* asm_evaluate(char *pos) {
               }
             }
           }
-        if (term == 0) { printf("Non-number found\n"); return 0; }
+        if (term == 0) {
+          printf("Non-number found\n");
+          printf("  %s\n",sourceLine);
+          return 0;
+          }
         }
 
       if (*pos != 0) pos++;
