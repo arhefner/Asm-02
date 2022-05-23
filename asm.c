@@ -10,7 +10,7 @@
 #define MAIN
 
 #include <time.h>
-#include <sys/time.h>
+//moved sys/time.h to header.h
 
 #include "header.h"
 
