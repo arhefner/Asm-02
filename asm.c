@@ -1902,6 +1902,10 @@ int pass(int p, char* sourceFile) {
     lineCount[numLineCount]++;
     Asm(buffer);
     }
+  if (inProc) {
+    printf("***ERROR: PROC without ENDP\n");
+    errors++;
+    }
   if (passNumber == 2 && outCount > 0) writeOutput();    
   if (passNumber == 2 && outMode != 'B') {
     //write EOF before closing intel hex file
