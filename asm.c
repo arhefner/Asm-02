@@ -1494,7 +1494,7 @@ void Asm(char* line) {
              }
           if (valid) output(b);
           c = translation[macro][i] - '1';
-          if (operandsEType[c] != ' ') {
+          if (passNumber == 2 && operandsEType[c] != ' ') {
             sprintf(buffer,"\\%s %04x\n",labels[operandsERef[c]],address);
             write(outFile, buffer, strlen(buffer));
             }
@@ -1514,7 +1514,7 @@ void Asm(char* line) {
              }
           if (valid) output(b);
           c = translation[macro][i] - '1';
-          if (operandsEType[c] != ' ') {
+          if (passNumber == 2 && operandsEType[c] != ' ') {
             sprintf(buffer,"/%s %04x\n",labels[operandsERef[c]],address);
             write(outFile, buffer, strlen(buffer));
             }
