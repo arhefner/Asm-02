@@ -738,6 +738,7 @@ char* asm_evaluate(char *pos) {
               else if (inProc != 0 && strcasecmp(labelProcs[i],module) == 0) {
                  usedLocal = 1;
                  referenceType = 'W';
+                 referenceLowOffset = labelValues[i] & 0xff;
                  }
               }
             }
@@ -1510,6 +1511,7 @@ void Asm(char* line) {
            if (passNumber == 2 && usedLocal >= 0) {
              fixups[numFixups] = address;
              fixupTypes[numFixups] = 'H';
+             fixupLowOffset[numFixups] = referenceLowOffset;
              numFixups++;
              }
           if (valid) output(b);
@@ -1546,6 +1548,10 @@ void Asm(char* line) {
              if (passNumber == 2 && usedLocal >= 0) {
                fixups[numFixups] = address-1;
                fixupTypes[numFixups] = referenceType;
+               if (referenceType == 'H')
+                 fixupLowOffset[numFixups] = referenceLowOffset;
+               else
+                 fixupLowOffset[numFixups] = 0;
                numFixups++;
                }
              break;
@@ -1707,8 +1713,12 @@ void Asm(char* line) {
                for (i=0; i<numFixups; i++) {
                  if (fixupTypes[i] == 'W')
                    sprintf(buffer,"+%04x\n",fixups[i]);
-                 if (fixupTypes[i] == 'H')
-                   sprintf(buffer,"^%04x\n",fixups[i]);
+                 if (fixupTypes[i] == 'H') {
+                   if (fixupLowOffset[i] != 0)
+                     sprintf(buffer,"^%04x %02x\n",fixups[i],fixupLowOffset[i]);
+                   else
+                     sprintf(buffer,"^%04x\n",fixups[i]);
+                   }
                  if (fixupTypes[i] == 'L')
                    sprintf(buffer,"v%04x\n",fixups[i]);
                  write(outFile, buffer, strlen(buffer));
