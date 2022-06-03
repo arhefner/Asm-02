@@ -734,11 +734,13 @@ char* asm_evaluate(char *pos) {
             i = findLabel(token);
             if (i >= 0) {
               usedReference = isExternal(i);
-              if (usedReference >= 0) referenceType = 'W';
+              if (usedReference >= 0) {
+                referenceType = 'W';
+                referenceLowOffset = labelValues[i] & 0xff;
+                }
               else if (inProc != 0 && strcasecmp(labelProcs[i],module) == 0) {
                  usedLocal = 1;
                  referenceType = 'W';
-                 referenceLowOffset = labelValues[i] & 0xff;
                  }
               }
             }
@@ -1062,6 +1064,7 @@ void compileOp(char* line) {
   }
 
 void Asm(char* line) {
+int z;
   int   pos;
   char *lpos;
   char  qt;
@@ -1511,13 +1514,14 @@ void Asm(char* line) {
            if (passNumber == 2 && usedLocal >= 0) {
              fixups[numFixups] = address;
              fixupTypes[numFixups] = 'H';
-             fixupLowOffset[numFixups] = referenceLowOffset;
+//             fixupLowOffset[numFixups] = referenceLowOffset;
+             fixupLowOffset[numFixups] = ((operands[translation[macro][i] - '1'] & 0xff) - referenceLowOffset) & 0xff;
              numFixups++;
              }
           if (valid) output(b);
           c = translation[macro][i] - '1';
           if (passNumber == 2 && operandsEType[c] != ' ') {
-            sprintf(buffer,"/%s %04x\n",labels[operandsERef[c]],address);
+            sprintf(buffer,"/%s %04x %02x\n",labels[operandsERef[c]],address,operands[c] & 0xff);
             write(outFile, buffer, strlen(buffer));
             }
           b = ((operands[c] >> 8) & 0xff);
