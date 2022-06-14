@@ -225,8 +225,8 @@ void list(char* message) {
 
 char* lineNo() {
   static char buffer[10];
-  if (numLineCount == 0) sprintf(buffer, "[%5d]",lineCount[numLineCount]);
-    else sprintf(buffer, "<%5d>",lineCount[numLineCount]);
+  if (fileNumber == 0) sprintf(buffer, "[%05d]",lineNumber[fileNumber]);
+    else sprintf(buffer, "<%05d>",lineNumber[fileNumber]);
   return buffer;
   }
 
@@ -270,68 +270,6 @@ int isRReg(char* line) {
     return -1;
     }
   return 0;
-  }
-
-void addDefine(char* define, char* value, int redefine) {
-  int i;
-  for (i=0; i<numDefines; i++)
-    if (strcasecmp(define, defines[i]) == 0) {
-      if (redefine) {
-        free(defineValues[i]);
-        defineValues[i] = (char*)malloc(strlen(value)+1);
-        strcpy(defineValues[i], value);
-        return;
-        }
-      printf("***ERROR: Duplicate define: %s\n",define);
-      errors++;
-      return;
-      }
-  numDefines++;
-  if (numDefines == 1) {
-    defines = (char**)malloc(sizeof(char*));
-    defineValues = (char**)malloc(sizeof(char*));
-    }
-  else {
-    defines = (char**)realloc(defines, sizeof(char*) * numDefines);
-    defineValues = (char**)realloc(defineValues, sizeof(char*) * numDefines);
-    }
-  defines[numDefines-1] = (char*)malloc(strlen(define) + 1);
-  strcpy(defines[numDefines-1], define);
-  defineValues[numDefines-1] = (char*)malloc(strlen(value) + 1);
-  strcpy(defineValues[numDefines-1], value);
-  }
-
-char* getDefine(char* define) {
-  int i;
-  for (i=0; i<numDefines; i++)
-    if (strcasecmp(define, defines[i]) == 0) {
-      return defineValues[i];
-      }
-  return 0;
-  }
-
-void delDefine(char* define) {
-  int pos;
-  int i;
-  pos = -1;
-  for (i=0; i<numDefines; i++)
-    if (strcasecmp(define, defines[i]) == 0) pos = i;
-  if (pos < 0) return;
-  free(defines[pos]);
-  free(defineValues[pos]);
-  for (i=pos; i<numDefines-1; i++) {
-    defines[i] = defines[i+1];
-    defineValues[i] = defineValues[i+1];
-    }
-  numDefines--;
-  if (numDefines == 0) {
-    free(defines);
-    free(defineValues);
-    }
-  else {
-    defines = (char**)realloc(defines, sizeof(char*) * numDefines);
-    defineValues = (char**)realloc(defineValues, sizeof(char*) * numDefines);
-    }
   }
 
 void addLabel(char* label, word value) {
@@ -470,6 +408,7 @@ void writeOutput() {
   }
 
 void output(byte value) {
+  char tmp[4];
   if (compMode == 'A' && (address < ramStart || address > ramEnd)) {
     printf("***ERROR: Address exceeded available RAM");
     errors++;
@@ -500,27 +439,17 @@ void output(byte value) {
       }
     if (createLst != 0 || showList != 0) {
       if (lstCount == 4) {
-        if (createLst) {
-          fprintf(lstFile,"%s\n",sourceLine);
-          fprintf(lstFile,"              ");
-          }
-        if (showList) {
-          printf("%s\n",sourceLine);
-          printf("              ");
-          }
+        strcat(listLine, "\n");
+        list(listLine);
+        strcpy(listLine,"              ");
         }
       else if (lstCount > 4 && (lstCount % 4) == 0) {
-        if (createLst) {
-          fprintf(lstFile,"\n");
-          fprintf(lstFile,"              ");
-          }
-        if (showList) {
-          printf("\n");
-          printf("              ");
-          }
+        strcat(listLine, "\n");
+        list(listLine);
+        strcpy(listLine,"              ");
         }
-      if (createLst) fprintf(lstFile,"%02x ",value);
-      if (showList) printf("%02x ",value);
+      sprintf(tmp, "%02x ", value);
+      strcat(listLine, tmp);
       lstCount++;
       }
     }
@@ -609,7 +538,7 @@ char* asm_convertNumber(char* buffer, dword* value, byte* success) {
 
 
 
-char* asm_evaluate(char *pos) {
+char* evaluate(char *pos) {
   int i;
   int numbers[256];
   byte ops[256];
@@ -848,7 +777,7 @@ char* asm_evaluate(char *pos) {
   }
 
 dword processArgs(char* args) {
-  args = asm_evaluate(args);
+  args = evaluate(args);
   return asm_numStack[0];
   }
 
@@ -876,7 +805,7 @@ void processDb(char* args,char typ) {
       if (*args == '{') args++;
       }
     else {
-      args = asm_evaluate(args);
+      args = evaluate(args);
       num = asm_numStack[0];
       if (typ == 'B') {
         output(num & 0xff);
@@ -1042,13 +971,277 @@ void compileOp(char* line) {
   strcpy(translation[numOps-1], trans);
   }
 
-void Asm(char* line) {
-int z;
+
+// ************************************************************************
+// *****                    Start of preprocessor                     *****
+// ************************************************************************
+
+void addDefine(char* define, char* value) {
+  int i;
+  for (i=0; i<numDefines; i++)
+    if (strcasecmp(define, defines[i]) == 0) {
+      printf("***ERROR: Duplicate define: %s\n",define);
+      errors++;
+      return;
+      }
+  numDefines++;
+  if (numDefines == 1) {
+    defines = (char**)malloc(sizeof(char*));
+    defineValues = (char**)malloc(sizeof(char*));
+    }
+  else {
+    defines = (char**)realloc(defines, sizeof(char*) * numDefines);
+    defineValues = (char**)realloc(defineValues, sizeof(char*) * numDefines);
+    }
+  defines[numDefines-1] = (char*)malloc(strlen(define) + 1);
+  strcpy(defines[numDefines-1], define);
+  defineValues[numDefines-1] = (char*)malloc(strlen(value) + 1);
+  strcpy(defineValues[numDefines-1], value);
+  }
+
+char* findDefine(char* define) {
+  int i;
+  for (i=0; i<numDefines; i++)
+    if (strcasecmp(define, defines[i]) == 0) {
+      return defineValues[i];
+      }
+  return NULL;
+  }
+
+void delDefine(char* define) {
+  int pos;
+  int i;
+  pos = -1;
+  for (i=0; i<numDefines; i++)
+    if (strcasecmp(define, defines[i]) == 0) pos = i;
+  if (pos < 0) return;
+  free(defines[pos]);
+  free(defineValues[pos]);
+  for (i=pos; i<numDefines-1; i++) {
+    defines[i] = defines[i+1];
+    defineValues[i] = defineValues[i+1];
+    }
+  numDefines--;
+  if (numDefines == 0) {
+    free(defines);
+    free(defineValues);
+    }
+  else {
+    defines = (char**)realloc(defines, sizeof(char*) * numDefines);
+    defineValues = (char**)realloc(defineValues, sizeof(char*) * numDefines);
+    }
+  }
+
+void defReplace(char* line) {
+  char  buffer[1024];
+  char *pchar;
+  byte  flag;
+  int i;
+  for (i=0; i<numDefines; i++) {
+    flag = 0xff;
+    while (flag) {
+      pchar = strstr(line, defines[i]);
+      if (pchar == NULL) flag = 0;
+      else if (isAlpha(*(pchar-1)) != 0 ||
+               isAlpha(*(pchar+strlen(defines[i]))) != 0) flag = 0;
+      if (flag) {
+        strncpy(buffer,line,pchar-line);
+        buffer[pchar-line] = 0;
+        strcat(buffer,defineValues[i]);
+        strcat(buffer,pchar+strlen(defines[i]));
+        strcpy(line,buffer);
+        }
+      }
+    }
+  }
+
+char* nextLine(char* line) {
+  char* ret;
+  int   flag;
+  char  buffer[1024];
   int   pos;
-  char *lpos;
+  char *pchar;
+  word  value;
+  flag = -1;
+  while (flag) {
+    ret = fgets(line, 1024, sourceFile[fileNumber]);
+    if (ret != NULL) {
+      while (strlen(ret) > 0 && line[strlen(ret)-1] <= ' ')
+        line[strlen(ret)-1] = 0;
+      strcpy(sourceLine, line);
+      linesAssembled++;
+      lineNumber[fileNumber]++;
+      flag = 0;
+      if (*ret == '#') {
+
+        if (nests[numNests] != 'I') {
+
+          if (nests[numNests] == 'Y') {
+
+            if (strncmp(ret,"#include ",9) == 0) {
+              ret += 9;
+              while (*ret == ' ' || *ret == '\t') ret++;
+              pos = 0;
+              while (*ret != 0 && *ret > ' ')
+                buffer[pos++] = *ret++;
+              buffer[pos] = 0;
+              fileNumber++;
+              lineNumber[fileNumber] = 0;
+              sourceFile[fileNumber] = fopen(buffer,"r");
+              if (sourceFile[fileNumber] == NULL) {
+                }
+              }
+
+            if (strncmp(ret,"#define ",8) == 0) {
+              ret += 8;
+              while (*ret == ' ' || *ret == '\t') ret++;
+              pos = 0;
+              while (*ret != 0 && *ret > ' ')
+                buffer[pos++] = *ret++;
+              buffer[pos] = 0;
+              while (*ret == ' ' || *ret == '\t') ret++;
+              if (*ret == 0) addDefine(buffer,"1");
+                else addDefine(buffer, ret);
+              }
+
+            if (strncasecmp(ret,"#error",6) == 0) {
+              ret += 6;
+              ret = trim(ret);
+              printf("***ERROR: %s\n",ret);
+              errors++;
+              }
+
+            if (strncasecmp(ret,"#undef",6) == 0) {
+              ret += 6;
+              ret = trim(ret);
+              delDefine(ret);
+              }
+
+            }
+
+          if (strncmp(ret,"#ifdef ",7) == 0) {
+            if (nests[numNests] == 'N') {
+              nests[numNests] = 'I';
+              numNests++;
+              }
+            else {
+              ret += 7;
+              while (*ret == ' ' || *ret == '\t') ret++;
+              pos = 0;
+              while (*ret != 0 && *ret > ' ')
+                buffer[pos++] = *ret++;
+              buffer[pos] = 0;
+              pchar = findDefine(buffer);
+              numNests++;
+              if (pchar != NULL) nests[numNests] = 'Y';
+                else nests[numNests] = 'N';
+              }
+            }
+
+          if (strncmp(ret,"#ifndef ",8) == 0) {
+            if (nests[numNests] == 'N') {
+              nests[numNests] = 'I';
+              numNests++;
+              }
+            else {
+              ret += 8;
+              while (*ret == ' ' || *ret == '\t') ret++;
+              pos = 0;
+              while (*ret != 0 && *ret > ' ')
+                buffer[pos++] = *ret++;
+              buffer[pos] = 0;
+              pchar = findDefine(buffer);
+              numNests++;
+              if (pchar != NULL) nests[numNests] = 'N';
+                else nests[numNests] = 'Y';
+              }
+            }
+
+          if (strncmp(ret,"#if ",4) == 0) {
+            if (nests[numNests] == 'N') {
+              nests[numNests] = 'I';
+              numNests++;
+              }
+            else {
+              ret += 4;
+              while (*ret == ' ' || *ret == '\t') ret++;
+              defReplace(ret);
+              evaluate(ret);
+              value = asm_numStack[0];
+              numNests++;
+              if (value != 0) nests[numNests] = 'Y';
+                else nests[numNests] = 'N';
+              }
+            }
+
+          if (strncmp(ret,"#else",5) == 0) {
+            if (numNests > 0)
+              nests[numNests] = (nests[numNests] == 'Y') ? 'N' : 'Y';
+            else {
+              printf("Error: Unmatched #else\n");
+              errors++;
+              }
+            }
+
+          }
+
+        if (strncmp(ret,"#endif",6) == 0) {
+          if (numNests > 0) numNests--;
+          else {
+            printf("Error: Unmatched #endif\n");
+            errors++;
+            }
+          }
+
+        if (nests[numNests] == 'Y') {
+          if (fileNumber == 0)
+            sprintf(listLine,"[%05d] ",lineNumber[fileNumber]);
+          else
+            sprintf(listLine,"<%05d> ",lineNumber[fileNumber]);
+          while (strlen(listLine) < 24) strcat(listLine," ");
+          strcat(listLine,"  ");
+          strcat(listLine,sourceLine);
+          if (passNumber == 2) {
+            if (showList != 0) printf("%s\n",listLine);
+            if (createLst != 0) fprintf(lstFile,"%s\n",listLine);
+            }
+          }
+
+        flag = -1;
+        }
+
+      else if (nests[numNests] != 'Y') {
+        flag = -1;
+        }
+      else {
+        defReplace(ret);
+        }
+      }
+    else {
+      if (fileNumber == 0) flag = 0;
+      else {
+        fclose(sourceFile[fileNumber]);
+        fileNumber--;
+        flag = -1;
+        }
+      }
+    }
+  if (fileNumber == 0)
+    sprintf(listLine,"[%05d] ",lineNumber[fileNumber]);
+  else
+    sprintf(listLine,"<%05d> ",lineNumber[fileNumber]);
+  return ret;
+  }
+
+// ************************************************************************
+// *****                    End of preprocessor                       *****
+// ************************************************************************
+
+
+void Asm(char* line) {
+  int   pos;
   char  qt;
   char *orig;
-  char *def;
   char  label[32];
   char  opcode[32];
   char  args[128];
@@ -1060,10 +1253,8 @@ int z;
   int   opcount;
   char *pargs;
   char  buffer[256];
-  char  rest[256];
   dword  value;
   int    macro;
-  FILE* file;
   byte  flag;
   byte  c;
   int   i,j;
@@ -1071,69 +1262,38 @@ int z;
   byte valid;
   char  lst[1024];
   usedReference = -1;
-  strcpy(sourceLine, line);
-  for (i=0; i<numDefines; i++) {
-    lpos = line;
-    if (strncasecmp(line,"#define ",8) == 0) {
-      lpos += 8;
-      while (*lpos != 0 && *lpos != ' ' && *lpos != '\t') lpos++;
-      }
-    if (strncasecmp(line,"#ifdef ",7) == 0) {
-      lpos += 7;
-      while (*lpos != 0 && *lpos != ' ' && *lpos != '\t') lpos++;
-      }
-    if (strncasecmp(line,"#ifndef ",8) == 0) {
-      lpos += 8;
-      while (*lpos != 0 && *lpos != ' ' && *lpos != '\t') lpos++;
-      }
-    while ((lpos = strstr(lpos,defines[i])) != NULL) {
-      if (isAlpha(*(lpos-1)) == 0 &&
-          isAlpha(*(lpos+strlen(defines[i]))) == 0) {
-        strcpy(rest,lpos+strlen(defines[i]));
-        *lpos = 0;
-        strcat(line, defineValues[i]);
-        strcat(line, rest);
-        }
-      else lpos++;
-      }
-    }
   orig = sourceLine;
 
-
   if (*line == '.') {
+    sprintf(lst, "                  %s\n", orig);
+    strcat(listLine, lst);
+    list(listLine);
     if (strncasecmp(line,".1805",5) == 0) {
       use1805 = 0xff;
-      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
     if (strncasecmp(line,".list",5) == 0) {
       showList = 0xff;
-      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
        }
     if (strncasecmp(line,".sym",4) == 0) {
       showSymbols = 0xff;
-      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
     if (strncasecmp(line,".op ",4) == 0) {
       compileOp(line+4);
-      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
     if (strncasecmp(line,".intel",6) == 0) {
       outMode = 'I';
-      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
     if (strncasecmp(line,".rcs",4) == 0) {
       outMode = 'R';
-      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
     if (strncasecmp(line,".binary",7) == 0) {
       outMode = 'B';
-      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
     if (strncasecmp(line,".arch=melf",10) == 0) {
@@ -1187,152 +1347,6 @@ int z;
         }
       return;
       }
-    }
-  if (strncasecmp(line,"include ", 8) == 0) {
-    sprintf(buffer,"#%s",line);
-    strcpy(line,buffer);
-    }
-
-  if (numNests > 0) {
-    if (strncasecmp(line,"#else",5) == 0 && nests[numNests-1] != 'I') {
-      nests[numNests-1] = (nests[numNests-1] == 'Y') ? 'N' : 'Y';
-      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
-      return;
-      }
-    if (nests[numNests-1] != 'Y' && strncasecmp(line,"#ifdef",6) == 0) {
-      nests[numNests++] = 'I';
-      sprintf(lst, "%7s -----             %s\n",lineNo(), orig); list(lst);
-      return;
-      }
-    if (nests[numNests-1] != 'Y' && strncasecmp(line,"#ifndef",7) == 0) {
-      nests[numNests++] = 'I';
-      sprintf(lst, "%7s -----             %s\n",lineNo(), orig); list(lst);
-      return;
-      }
-    if (nests[numNests-1] != 'Y' && strncasecmp(line,"#if ",4) == 0) {
-      nests[numNests++] = 'I';
-      sprintf(lst, "%7s -----             %s\n",lineNo(), orig); list(lst);
-      return;
-      }
-    if (strncasecmp(line,"#endif",6) == 0) {
-      numNests--;
-      if (numNests < 0) {
-        printf("***ERROR: #endif without #if");
-        errors++;
-        }
-      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
-      return;
-      }
-    if (nests[numNests-1] != 'Y') {
-      sprintf(lst, "%7s -----             %s\n",lineNo(), orig); list(lst);
-      return;
-      }
-    }
-
-  if (*line == '#') {
-    if (strncasecmp(line,"#if ",4) == 0) {
-      line += 4;
-      asm_evaluate(line);
-      if (asm_numStack[0] != 0) {
-        nests[numNests++] = 'Y';
-        }
-      else {
-        nests[numNests++] = 'N';
-        }
-      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
-      return;
-      }
-    if (strncasecmp(line,"#define",7) == 0) {
-      line += 7;
-      line = trim(line);
-      pos = 0;
-      while (*line != 0 && *line > ' ') label[pos++] = *line++;
-      label[pos] = 0;
-      if (strchr(line,';') != NULL) *(strchr(line,';')) = 0;
-      while (line[strlen(line)-1] == ' ') line[strlen(line)-1] = 0;
-      line = trim(line);
-      if (*line != 0) addDefine(label, line, 0);
-        else addDefine(label, "1", 0);
-      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
-      return;
-      }
-    if (strncasecmp(line,"#error",6) == 0) {
-      line += 6;
-      line = trim(line);
-      printf("***ERROR: %s\n",line);
-      errors++;
-      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
-      return;
-      }
-    if (strncasecmp(line,"#undef",6) == 0) {
-      line += 6;
-      line = trim(line);
-      pos = 0;
-      while (*line != 0 && *line > ' ') label[pos++] = *line++;
-      label[pos] = 0;
-      line = trim(line);
-      i = atoi(line);
-      if (i == 0) i = 1;
-      delDefine(label);
-      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
-      return;
-      }
-    if (strncasecmp(line,"#ifdef",6) == 0) {
-      line = orig+6;
-      line = trim(line);
-      pos = 0;
-      while (*line != 0 && *line > ' ') label[pos++] = *line++;
-      label[pos] = 0;
-      def = getDefine(label);
-      if (def != 0) {
-        nests[numNests++] = 'Y';
-        }
-      else {
-        nests[numNests++] = 'N';
-        }
-      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
-      return;
-      }
-    if (strncasecmp(line,"#ifndef",7) == 0) {
-      line = orig+7;
-      line = trim(line);
-      pos = 0;
-      while (*line != 0 && *line > ' ') label[pos++] = *line++;
-      label[pos] = 0;
-      def = getDefine(label);
-      if (def != 0) {
-        nests[numNests++] = 'N';
-        }
-      else {
-        nests[numNests++] = 'Y';
-        }
-      sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
-      return;
-      }
-    }
-
-  if (strncasecmp(line, "#include",8) == 0) {
-    line += 8;
-    line = trim(line);
-    file = fopen(line,"r");
-    if (file == NULL) {
-      printf("Could not open include file: %s\n",line);
-      exit(1);
-      }
-    sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
-    numLineCount++;
-    lineCount[numLineCount] = 0;
-    while (fgets(buffer, 256, file) != NULL) {
-      while (strlen(buffer) > 0 && buffer[strlen(buffer)-1] < 32)
-        buffer[strlen(buffer)-1] = 0;
-
-
-      lineCount[numLineCount]++;
-      Asm(buffer);
-      }
-    fclose(file);
-    numLineCount--;
-    return;
     }
 
   if (strncasecmp(line,".suppress",9) == 0) {
@@ -1388,10 +1402,11 @@ int z;
     }
   if (strlen(opcode) > 0) {
     macro = -1;
-    if (passNumber == 2 && createLst != 0)
-      fprintf(lstFile, "[%5d] %04x: ",lineCount[numLineCount],asmAddress);
-    if (passNumber == 2 && showList != 0)
-      printf("[%5d] %04x: ",lineCount[numLineCount],asmAddress);
+    if (passNumber == 2) {
+      sprintf(buffer,"%04x: ",lineNumber[fileNumber]);
+      strcat(listLine, buffer);
+      }
+
     lstCount = 0;
     i = 0;
     pos = -1;
@@ -1404,7 +1419,7 @@ int z;
       opcount = 0;
       while (*opline != 0) {
         isreg[opcount] = isRReg(opline);
-        opline = asm_evaluate(opline);
+        opline = evaluate(opline);
         operands[opcount++] = asm_numStack[0];
         operandsEType[opcount-1] = ' ';
         if (usedReference >= 0) {
@@ -1559,9 +1574,9 @@ int z;
              value = processArgs(args);
              if (passNumber == 2 && (value & 0xff00) != (address & 0xff00)) {
                if (numLineCount == 0)
-                 printf("[%5d]: Short branch out of page\n",lineCount[numLineCount]);
+                 printf("[%05d]: Short branch out of page\n",lineNumber[fileNumber]);
                else
-                 printf("<%5d>: Short branch out of page\n",lineCount[numLineCount]);
+                 printf("<%05d>: Short branch out of page\n",lineNumber[fileNumber]);
                errors++;
                }
              output(value & 0xff);
@@ -1629,13 +1644,13 @@ int z;
                errors++;
                }
              output(0x68);
-             pargs = asm_evaluate(args);
+             pargs = evaluate(args);
              output(opcodes[pos].byte1 | (asm_numStack[0] & 0xf));
              pargs = trim(pargs);
              if (*pargs == ',') {
                pargs++;
                pargs = trim(pargs);
-               pargs = asm_evaluate(pargs);
+               pargs = evaluate(pargs);
                output((asm_numStack[0] & 0xff00) >> 8);
                output(asm_numStack[0] & 0xff);
                }
@@ -1759,18 +1774,14 @@ int z;
              break;
         }
       }
-    if (passNumber == 2 && (createLst != 0 || showList != 0)) {
-      if (lstCount <= 4) {
-        while (lstCount < 4) {
-          if (createLst) fprintf(lstFile,"   ");
-          if (showList) printf("   ");
-          lstCount++;
-          }
-        if (createLst) fprintf(lstFile,"%s",sourceLine);
-        if (showList) printf("%s",sourceLine);
+    if (passNumber == 2) {
+      while (lstCount < 4) {
+        strcat(listLine, "   ");
+        lstCount++;
         }
-      if (createLst) fprintf(lstFile, "\n");
-      if (showList) printf("\n");
+      strcat(listLine, sourceLine);
+      strcat(listLine, "\n");
+      list(listLine);
       }
     }
   else {
@@ -1874,27 +1885,28 @@ void processOption(char* option) {
     if (strncmp(option,"-rom=",5) == 0) processROM(option+5);
   }
 
-int pass(int p, char* sourceFile) {
+int pass(int p, char* srcFile) {
   int i;
   char buffer[256];
-  FILE* inFile;
   suppression = 0;
   passNumber = p;
   address = 0;
   outCount = 0;
+  numNests = 0;
   outAddress = 0;
   linesAssembled = 0;
-  lineCount[0] = 0;
   numLineCount = 0;
   numFixups = 0;
   lowAddress = 0xffff;
   highAddress = 0x0000;
   strcpy(module,"*");
-  inFile = fopen(sourceFile,"r");
-  if (inFile == NULL) {
-    printf("Could not open source file: %s\n",sourceFile);
+  fileNumber = 0;
+  sourceFile[0] = fopen(srcFile,"r");
+  if (sourceFile[0] == NULL) {
+    printf("Could not open source file: %s\n",srcFile);
     exit(1);
     }
+  lineNumber[0] = 0;
   if (passNumber == 2) {
       if (outMode != 'B') {
       outFile = open(outName,O_CREAT|O_TRUNC|O_WRONLY|O_BINARY,0666);
@@ -1909,12 +1921,13 @@ int pass(int p, char* sourceFile) {
       }
     if (createLst) lstFile = fopen(lstName,"w");
     }
-  while (fgets(buffer, 255, inFile) != NULL) {
+  nests[0] = 'Y';
+  while (nextLine(buffer) != NULL) {
     for (i=0; i<strlen(buffer); i++)
       if (buffer[i] < 32 && buffer[i] != '\t') buffer[i] = 0;
-    lineCount[numLineCount]++;
     Asm(buffer);
     }
+  fclose(sourceFile[0]);
   if (inProc) {
     printf("***ERROR: PROC without ENDP\n");
     errors++;
@@ -2025,7 +2038,7 @@ void assembleFile(char* sourceFile, int argc, char** argv) {
 
   for (i=0; i<argc; i++) {
     if (strncmp(argv[i],"-D",2) == 0) {
-      addDefine(argv[i]+2,"1",0);
+      addDefine(argv[i]+2,"1");
       }
     }
   i = pass(1, sourceFile);
@@ -2033,7 +2046,7 @@ void assembleFile(char* sourceFile, int argc, char** argv) {
   if (i == 0 && errors == 0) {
     for (i=0; i<argc; i++) {
       if (strncmp(argv[i],"-D",2) == 0) {
-        addDefine(argv[i]+2,"1",0);
+        addDefine(argv[i]+2,"1");
         }
       }
     i = pass(2, sourceFile);
