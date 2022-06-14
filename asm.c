@@ -72,27 +72,6 @@ typedef struct {
 #define OP_END  0x01
 #define OP_NUM  0x00
 
-// #define OP_LOW    0x62
-// #define OP_HIGH   0x61
-// #define OP_DOT    0x51
-// #define OP_MOD    0x43
-// #define OP_MUL    0x42
-// #define OP_DIV    0x41
-// #define OP_ADD    0x32
-// #define OP_SUB    0x31
-// #define OP_GT     0x26
-// #define OP_LT     0x25
-// #define OP_GTE    0x24
-// #define OP_LTE    0x23
-// #define OP_EQ     0x22
-// #define OP_NE     0x21
-// #define OP_AND    0x13
-// #define OP_OR     0x12
-// #define OP_XOR    0x11
-// #define OP_OP     0x08
-// #define OP_CP     0x09
-// #define OP_NUM    0x00
-
 OPCODE opcodes[] = {
   { "adc",   OT_0ARG,   ADC   },
   { "adci",  OT_1ARG,   ADCI  },
@@ -1471,6 +1450,7 @@ int z;
       i = 0;
       valid = 0;
       while ((c = translation[macro][i]) != 0) {
+
         if (c == ' ') {
           if (valid) output(b);
           b = 0;
@@ -1485,12 +1465,31 @@ int z;
           b = (b << 4) | (operands[c] & 0xf);
           valid = 0xff;
           }
+
+        if (c == 'w' || c == 'W') {
+          i++;
+           if (passNumber == 2 && usedLocal >= 0) {
+             fixups[numFixups] = address;
+             fixupTypes[numFixups] = 'W';
+             numFixups++;
+             }
+          if (valid) output(b);
+          c = translation[macro][i] - '1';
+          if (passNumber == 2 && operandsEType[c] != ' ') {
+            sprintf(buffer,"?%s %04x\n",labels[operandsERef[c]],address);
+            write(outFile, buffer, strlen(buffer));
+            }
+          if (c >= 0 && c<= 9) {
+            b = ((operands[c] >> 8) & 0xff);
+            output(b);
+            b = (operands[c] & 0xff);
+            output(b);
+            }
+          valid = 0;
+          }
+
         if (c == 'l' || c == 'L') {
           i++;
-//           if (passNumber == 2 && usedReference >= 0) {
-//             sprintf(buffer,"?%s %04x\n",labels[usedReference],address);
-//             write(outFile, buffer, strlen(buffer));
-//             }
            if (passNumber == 2 && usedLocal >= 0) {
              fixups[numFixups] = address;
              fixupTypes[numFixups] = 'L';
@@ -1505,16 +1504,12 @@ int z;
           if (c >= 0 && c<= 9) b = (operands[c] & 0xff);
           valid = 0xff;
           }
+
         if (c == 'h' || c == 'H') {
           i++;
-//           if (passNumber == 2 && usedReference >= 0) {
-//             sprintf(buffer,"?%s %04x\n",labels[usedReference],address);
-//             write(outFile, buffer, strlen(buffer));
-//             }
            if (passNumber == 2 && usedLocal >= 0) {
              fixups[numFixups] = address;
              fixupTypes[numFixups] = 'H';
-//             fixupLowOffset[numFixups] = referenceLowOffset;
              fixupLowOffset[numFixups] = ((operands[translation[macro][i] - '1'] & 0xff) - referenceLowOffset) & 0xff;
              numFixups++;
              }
