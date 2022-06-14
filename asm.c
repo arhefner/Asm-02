@@ -1089,6 +1089,8 @@ char* nextLine(char* line) {
               lineNumber[fileNumber] = 0;
               sourceFile[fileNumber] = fopen(buffer,"r");
               if (sourceFile[fileNumber] == NULL) {
+                printf("***ERROR: Could not open: %s\n",buffer);
+                errors++;
                 }
               }
 
@@ -1159,8 +1161,8 @@ char* nextLine(char* line) {
 
           if (strncmp(ret,"#if ",4) == 0) {
             if (nests[numNests] == 'N') {
-              nests[numNests] = 'I';
               numNests++;
+              nests[numNests] = 'I';
               }
             else {
               ret += 4;
@@ -1178,7 +1180,7 @@ char* nextLine(char* line) {
             if (numNests > 0)
               nests[numNests] = (nests[numNests] == 'Y') ? 'N' : 'Y';
             else {
-              printf("Error: Unmatched #else\n");
+              printf("***Error: Unmatched #else\n");
               errors++;
               }
             }
@@ -1188,7 +1190,7 @@ char* nextLine(char* line) {
         if (strncmp(ret,"#endif",6) == 0) {
           if (numNests > 0) numNests--;
           else {
-            printf("Error: Unmatched #endif\n");
+            printf("***Error: Unmatched #endif\n");
             errors++;
             }
           }
