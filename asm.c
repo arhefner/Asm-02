@@ -1123,8 +1123,8 @@ char* nextLine(char* line) {
 
           if (strncmp(ret,"#ifdef ",7) == 0) {
             if (nests[numNests] == 'N') {
-              nests[numNests] = 'I';
               numNests++;
+              nests[numNests] = 'I';
               }
             else {
               ret += 7;
@@ -1142,8 +1142,8 @@ char* nextLine(char* line) {
 
           if (strncmp(ret,"#ifndef ",8) == 0) {
             if (nests[numNests] == 'N') {
-              nests[numNests] = 'I';
               numNests++;
+              nests[numNests] = 'I';
               }
             else {
               ret += 8;
