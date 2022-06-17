@@ -59,6 +59,7 @@ typedef struct {
 #define OP_AND  0x40
 #define OP_OR   0x41
 #define OP_XOR  0x42
+#define OP_NOT  0x43
 #define OP_EQ   0x30
 #define OP_NE   0x31
 #define OP_LT   0x32
@@ -761,6 +762,10 @@ char* asm_evaluate(char *pos) {
              if (*(pos+1) == '=') { op = OP_EQ; pos++; }
                else op = OP_EQ;
              break;
+        case '!':
+             if (*(pos+1) == '=') { op = OP_NE; pos++; }
+             else op = OP_NOT;
+             break;
         case '<':
              if (*(pos+1) == '<') { op = OP_SHL; pos++; }
              else if (*(pos+1) == '=') { op = OP_LTE; pos++; }
@@ -786,10 +791,12 @@ char* asm_evaluate(char *pos) {
           case OP_SHR : numbers[nstack-1] >>= numbers[nstack]; break;
           case OP_AND : numbers[nstack-1] &= numbers[nstack]; break;
           case OP_OR  : numbers[nstack-1] |= numbers[nstack]; break;
+          case OP_NOT : numbers[nstack] = !numbers[nstack]; break;
           case OP_LAND: numbers[nstack-1] &= numbers[nstack]; break;
           case OP_LOR : numbers[nstack-1] |= numbers[nstack]; break;
           case OP_XOR : numbers[nstack-1] ^= numbers[nstack]; break;
           case OP_EQ  : numbers[nstack-1] = (numbers[nstack-1] == numbers[nstack]); break;
+          case OP_NE  : numbers[nstack-1] = (numbers[nstack-1] != numbers[nstack]); break;
           case OP_LT  : numbers[nstack-1] = (numbers[nstack-1] <  numbers[nstack]); break;
           case OP_GT  : numbers[nstack-1] = (numbers[nstack-1] >  numbers[nstack]); break;
           case OP_LTE : numbers[nstack-1] = (numbers[nstack-1] <= numbers[nstack]); break;
@@ -1043,7 +1050,6 @@ void compileOp(char* line) {
   }
 
 void Asm(char* line) {
-int z;
   int   pos;
   char *lpos;
   char  qt;
