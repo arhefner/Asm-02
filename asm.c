@@ -1069,6 +1069,7 @@ char* nextLine(char* line) {
       linesAssembled++;
       lineNumber[fileNumber]++;
       flag = 0;
+      while (*ret == ' ') ret++;
       if (*ret == '#') {
 
         if (nests[numNests] != 'I') {
