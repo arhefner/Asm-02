@@ -210,10 +210,6 @@ OPCODE opcodes[] = {
   { "",      0,         0     },
   };
 
-dword asm_numStack[256];
-word asm_nstackSize;
-byte asm_tokens[64];
-byte asm_numTokens;
 char sourceLine[1024];
 word lstCount;
 
@@ -538,7 +534,7 @@ char* asm_convertNumber(char* buffer, dword* value, byte* success) {
 
 
 
-char* evaluate(char *pos) {
+char* evaluate(char *pos, dword* result) {
   int i;
   int numbers[256];
   byte ops[256];
@@ -772,13 +768,14 @@ char* evaluate(char *pos) {
      printf("Did not reduce to 1 term: %d\n",nstack);
      return pos;
      }
-  asm_numStack[0] = numbers[0];
+  *result = numbers[0];
   return pos;
   }
 
 dword processArgs(char* args) {
-  args = evaluate(args);
-  return asm_numStack[0];
+  dword result;
+  args = evaluate(args, &result);
+  return result;
   }
 
 void processDb(char* args,char typ) {
@@ -805,8 +802,7 @@ void processDb(char* args,char typ) {
       if (*args == '{') args++;
       }
     else {
-      args = evaluate(args);
-      num = asm_numStack[0];
+      args = evaluate(args, &num);
       if (typ == 'B') {
         output(num & 0xff);
         }
@@ -1062,6 +1058,7 @@ char* nextLine(char* line) {
   int   pos;
   char *pchar;
   word  value;
+  dword dvalue;
   flag = -1;
   while (flag) {
     ret = fgets(line, 1024, sourceFile[fileNumber]);
@@ -1168,8 +1165,8 @@ char* nextLine(char* line) {
               ret += 4;
               while (*ret == ' ' || *ret == '\t') ret++;
               defReplace(ret);
-              evaluate(ret);
-              value = asm_numStack[0];
+              evaluate(ret, &dvalue);
+              value = dvalue;
               numNests++;
               if (value != 0) nests[numNests] = 'Y';
                 else nests[numNests] = 'N';
@@ -1265,11 +1262,26 @@ void Asm(char* line) {
   char  lst[1024];
   usedReference = -1;
   orig = sourceLine;
-
   if (*line == '.') {
     sprintf(lst, "                  %s\n", orig);
     strcat(listLine, lst);
     list(listLine);
+    if (strncasecmp(line,".align ",7) == 0) {
+      if (passNumber == 2 && outCount > 0) writeOutput();
+      outCount = 0;
+      line += 7;
+      line = trim(line);
+      if (strncasecmp(line,"word",4) == 0) address = (address+1) & 0xfffe;
+      if (strncasecmp(line,"dword",5) == 0) address = (address+3) & 0xfffc;
+      if (strncasecmp(line,"qword",5) == 0) address = (address+7) & 0xfff8;
+      if (strncasecmp(line,"para",4) == 0) address = (address+15) & 0xfff0;
+      if (strncasecmp(line,"32",2) == 0) address = (address+31) & 0xffe0;
+      if (strncasecmp(line,"64",2) == 0) address = (address+63) & 0xffc0;
+      if (strncasecmp(line,"128",3) == 0) address = (address+127) & 0xff80;
+      if (strncasecmp(line,"page",4) == 0) address = (address+255) & 0xff00;
+      outAddress = address;
+      return;
+      }
     if (strncasecmp(line,".1805",5) == 0) {
       use1805 = 0xff;
       return;
@@ -1405,7 +1417,7 @@ void Asm(char* line) {
   if (strlen(opcode) > 0) {
     macro = -1;
     if (passNumber == 2) {
-      sprintf(buffer,"%04x: ",lineNumber[fileNumber]);
+      sprintf(buffer,"%04x: ",address);
       strcat(listLine, buffer);
       }
 
@@ -1421,8 +1433,8 @@ void Asm(char* line) {
       opcount = 0;
       while (*opline != 0) {
         isreg[opcount] = isRReg(opline);
-        opline = evaluate(opline);
-        operands[opcount++] = asm_numStack[0];
+        opline = evaluate(opline, &value);
+        operands[opcount++] = value;
         operandsEType[opcount-1] = ' ';
         if (usedReference >= 0) {
           operandsEType[opcount-1] = referenceType;
@@ -1575,7 +1587,7 @@ void Asm(char* line) {
              output(opcodes[pos].byte1);
              value = processArgs(args);
              if (passNumber == 2 && (value & 0xff00) != (address & 0xff00)) {
-               if (numLineCount == 0)
+               if (fileNumber == 0)
                  printf("[%05d]: Short branch out of page\n",lineNumber[fileNumber]);
                else
                  printf("<%05d>: Short branch out of page\n",lineNumber[fileNumber]);
@@ -1646,15 +1658,15 @@ void Asm(char* line) {
                errors++;
                }
              output(0x68);
-             pargs = evaluate(args);
-             output(opcodes[pos].byte1 | (asm_numStack[0] & 0xf));
+             pargs = evaluate(args, &value);
+             output(opcodes[pos].byte1 | (value & 0xf));
              pargs = trim(pargs);
              if (*pargs == ',') {
                pargs++;
                pargs = trim(pargs);
-               pargs = evaluate(pargs);
-               output((asm_numStack[0] & 0xff00) >> 8);
-               output(asm_numStack[0] & 0xff);
+               pargs = evaluate(pargs, &value);
+               output((value & 0xff00) >> 8);
+               output(value & 0xff);
                }
              else {
                printf("***ERROR: Missing argument\n");
@@ -1897,7 +1909,6 @@ int pass(int p, char* srcFile) {
   numNests = 0;
   outAddress = 0;
   linesAssembled = 0;
-  numLineCount = 0;
   numFixups = 0;
   lowAddress = 0xffff;
   highAddress = 0x0000;
@@ -2096,6 +2107,8 @@ int main(int argc, char** argv) {
   int i;
   time_t tv;
   struct tm dt;
+  printf("Asm/02 v1.1\n");
+  printf("by Michael H. Riley\n");
   createLst = 0;
   outMode = 'R';
   ramStart = 0x0000;
