@@ -27,6 +27,13 @@
      N - nybble
      W - word
      R - R-register
+   translation:
+     0-9 - Nybble after 4-bit left shift
+     A-F - Nybble after 4-bit left shift
+     Hn  - High byte of argument n
+     Ln  - Low byte of argument n
+     $n  - Or with argument n after 4-bit left shift
+     Wn  - Output the two bytes of word argument n
 
 Command line switches:
   -1805         - Enable 1805 mode
