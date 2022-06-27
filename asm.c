@@ -657,6 +657,7 @@ char* evaluate(char *pos, dword* result) {
               else if (inProc != 0 && strcasecmp(labelProcs[i],module) == 0) {
                  usedLocal = 1;
                  referenceType = 'W';
+                 referenceLowOffset = labelValues[i] & 0xff;
                  }
               }
             }
@@ -1609,8 +1610,12 @@ void Asm(char* line) {
              if (passNumber == 2 && usedReference >= 0) {
                if (referenceType == 'W' || referenceType == 'L')
                  sprintf(buffer,"\\%s %04x\n",labels[usedReference],address-1);
-               else
-                 sprintf(buffer,"/%s %04x\n",labels[usedReference],address-1);
+               else {
+                 if (referenceLowOffset == 0)
+                   sprintf(buffer,"/%s %04x\n",labels[usedReference],address-1);
+                 else
+                   sprintf(buffer,"/%s %04x %02x\n",labels[usedReference],address-1,referenceLowOffset);
+                 }
                write(outFile, buffer, strlen(buffer));
                }
              if (passNumber == 2 && usedLocal >= 0) {
