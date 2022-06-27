@@ -301,20 +301,24 @@ word getLabel(char* label) {
   if (passNumber == 1) {
     for (i=0; i<numLabels; i++)
       if (strcasecmp(label, labels[i]) == 0 &&
-          (strcasecmp(module, labelProcs[i]) == 0 ||
-           strcasecmp("*", labelProcs[i]) == 0 ||
-           strcasecmp(" ", labelProcs[i]) == 0)) {
+          strcasecmp(module, labelProcs[i]) == 0)
         return labelValues[i];
-        }
+    for (i=0; i<numLabels; i++)
+      if (strcasecmp(label, labels[i]) == 0 &&
+          (strcasecmp("*", labelProcs[i]) == 0 ||
+           strcasecmp(" ", labelProcs[i]) == 0))
+        return labelValues[i];
     return 0;
     }
   for (i=0; i<numLabels; i++)
     if (strcasecmp(label, labels[i]) == 0 &&
-        (strcasecmp(module, labelProcs[i]) == 0 ||
-         strcasecmp(" ", labelProcs[i]) == 0 ||
-         strcasecmp("*", labelProcs[i]) == 0)) {
+        strcasecmp(module, labelProcs[i]) == 0)
       return labelValues[i];
-      }
+  for (i=0; i<numLabels; i++)
+    if (strcasecmp(label, labels[i]) == 0 &&
+        (strcasecmp(" ", labelProcs[i]) == 0 ||
+         strcasecmp("*", labelProcs[i]) == 0))
+      return labelValues[i];
   printf("***ERROR: Label not found: %s\n",label);
   printf("%s\n",sourceLine);
   errors++;
@@ -326,8 +330,12 @@ int findLabel(char* label) {
   if (passNumber == 1) {
     for (i=0; i<numLabels; i++)
       if (strcasecmp(label, labels[i]) == 0 &&
-          (strcasecmp(module, labelProcs[i]) == 0 ||
-           strcasecmp(" ", labelProcs[i]) == 0 ||
+          strcasecmp(module, labelProcs[i]) == 0) {
+        return i;
+        }
+    for (i=0; i<numLabels; i++)
+      if (strcasecmp(label, labels[i]) == 0 &&
+          (strcasecmp(" ", labelProcs[i]) == 0 ||
            strcasecmp("*", labelProcs[i]) == 0)) {
         return i;
         }
@@ -335,8 +343,12 @@ int findLabel(char* label) {
     }
   for (i=0; i<numLabels; i++)
     if (strcasecmp(label, labels[i]) == 0 &&
-          (strcasecmp(module, labelProcs[i]) == 0 ||
-           strcasecmp(" ", labelProcs[i]) == 0 ||
+          strcasecmp(module, labelProcs[i]) == 0) {
+      return i;
+      }
+  for (i=0; i<numLabels; i++)
+    if (strcasecmp(label, labels[i]) == 0 &&
+          (strcasecmp(" ", labelProcs[i]) == 0 ||
            strcasecmp("*", labelProcs[i]) == 0)) {
       return i;
       }
@@ -804,12 +816,33 @@ void processDb(char* args,char typ) {
     else {
       args = evaluate(args, &num);
       if (typ == 'B') {
+        if (passNumber == 2 && usedReference >= 0) {
+          if (referenceType == 'W' || referenceType == 'L')
+            sprintf(buffer,"\\%s %04x\n",labels[usedReference],address);
+          else
+            sprintf(buffer,"/%s %04x\n",labels[usedReference],address);
+          write(outFile, buffer, strlen(buffer));
+          }
+        if (passNumber == 2 && usedLocal >= 0) {
+          fixups[numFixups] = address;
+          fixupTypes[numFixups] = referenceType;
+          if (referenceType == 'H')
+            fixupLowOffset[numFixups] = referenceLowOffset;
+          else
+            fixupLowOffset[numFixups] = 0;
+          numFixups++;
+          }
         output(num & 0xff);
         }
       else if (typ == 'W') {
         if (passNumber == 2 && usedReference >= 0) {
           sprintf(buffer,"?%s %04x\n",labels[usedReference],address);
           write(outFile, buffer, strlen(buffer));
+          }
+        if (passNumber == 2 && usedLocal >= 0) {
+          fixups[numFixups] = address;
+          fixupTypes[numFixups] = 'W';
+          numFixups++;
           }
         output(((num & 0x0000FF00) >> 8) & 0xff);
         output(num & 0xff);
@@ -860,8 +893,10 @@ void processDs(word arg) {
   if (passNumber == 2 && outCount > 0) {
     writeOutput();
     }
-  sprintf(buffer,">%04x\n",arg);
-  write(outFile, buffer, strlen(buffer));
+  if (passNumber == 2) {
+    sprintf(buffer,">%04x\n",arg);
+    write(outFile, buffer, strlen(buffer));
+    }
   outAddress = address;
   outCount = 0;
   }
