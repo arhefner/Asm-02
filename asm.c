@@ -275,6 +275,7 @@ void addLabel(char* label, word value) {
     if (strcasecmp(label, labels[i]) == 0 &&
         strcasecmp(module, labelProcs[i]) == 0) {
       printf("***ERROR: Duplicate label: %s\n",label);
+      printf("          %s\n",sourceLine);
       errors++;
       return;
       }
