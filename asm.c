@@ -769,6 +769,8 @@ char* evaluate(char *pos, dword* result) {
         }
       if (op != OP_END) {
         if (op == OP_CP) {
+          if (usedLocal >= 0 || usedReference >= 0) 
+            referenceLowOffset = numbers[0] & 0xff;
           if (ops[ostack-1] != OP_OP) {
             printf("Expression error, ) without (\n");
             return 0;
