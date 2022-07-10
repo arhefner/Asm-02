@@ -38,6 +38,8 @@
 Command line switches:
   -1805         - Enable 1805 mode
   -b            - Output in binary
+  -Dname        - Define name with value of "1"
+  -Dname=value  - Define name with specified value
   -r            - Output in RCS hex
   -i            - Output in Intel hex
   -l            - Show assembly list
