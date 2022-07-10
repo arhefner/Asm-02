@@ -42,6 +42,7 @@ Command line switches:
   -Dname=value  - Define name with specified value
   -r            - Output in RCS hex
   -i            - Output in Intel hex
+  -Ipath        - Add path to search list for #include files
   -l            - Show assembly list
   -L            - Create .lst file
   -s            - Show symbols

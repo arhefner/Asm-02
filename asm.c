@@ -1105,10 +1105,12 @@ char* nextLine(char* line) {
   char* ret;
   int   flag;
   char  buffer[1024];
+  char  path[2048];
   int   pos;
   char *pchar;
   word  value;
   dword dvalue;
+  int   i;
   flag = -1;
   while (flag) {
     ret = fgets(line, 1024, sourceFile[fileNumber]);
@@ -1137,8 +1139,19 @@ char* nextLine(char* line) {
               lineNumber[fileNumber] = 0;
               sourceFile[fileNumber] = fopen(buffer,"r");
               if (sourceFile[fileNumber] == NULL) {
-                printf("***ERROR: Could not open: %s\n",buffer);
-                errors++;
+                i = 0;
+                while (i < numIncPath) {
+                  strcpy(path, incPath[i]);
+                  if (path[strlen(path)-1] != '/') strcat(path,"/");
+                  strcat(path, buffer);
+                  sourceFile[fileNumber] = fopen(path, "r");
+                  if (sourceFile[fileNumber] != NULL) i = numIncPath;
+                  i++;
+                  }
+                if (sourceFile[fileNumber] == NULL) {
+                  printf("***ERROR: Could not open: %s\n",buffer);
+                  errors++;
+                  }
                 }
               }
 
@@ -1938,6 +1951,18 @@ void processOption(char* option) {
         strcpy(clDefineValues[numClDefines-1], "1");
         }
       }
+    if (strncmp(option,"-I",2) == 0) {
+      option += 2;
+      numIncPath++;
+      if (numIncPath == 1) 
+        incPath = (char**)malloc(sizeof(char*));
+      else
+        incPath = (char**)realloc(incPath,sizeof(char*)*numIncPath);
+      incPath[numIncPath-1] = (char*)malloc(strlen(option)+1);
+      strcpy(incPath[numIncPath-1], option);
+printf("adding %s to include path\n",option);
+      }
+
     if (strcmp(option,"-melf") == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
@@ -2213,6 +2238,7 @@ int main(int argc, char** argv) {
   numSourceFiles = 0;
   numLabels = 0;
   numExternals = 0;
+  numIncPath = 0;
   strcpy(lineEnding,"\n");
   tv = time(NULL);
   localtime_r(&tv, &dt);

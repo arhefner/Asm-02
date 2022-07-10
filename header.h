@@ -177,6 +177,8 @@ LINK int    errors;
 LINK word   execAddr;
 LINK word   highest;
 LINK word   highAddress;
+LINK char **incPath;
+LINK int    numIncPath;
 LINK int    inProc;
 LINK char   lineEnding[3];
 LINK int    linesAssembled;
