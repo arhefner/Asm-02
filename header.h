@@ -132,6 +132,9 @@ typedef union {
 LINK char** defines;
 LINK char** defineValues;
 LINK int    numDefines;
+LINK char** clDefines;
+LINK char** clDefineValues;
+LINK int    numClDefines;
 LINK char** labels;
 LINK char** labelProcs;
 LINK word*  labelValues;

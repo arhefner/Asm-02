@@ -1896,6 +1896,8 @@ void processROM(char* buffer) {
   }
 
 void processOption(char* option) {
+  char def[256];
+  char *equals;
     if (strcmp(option,"-1805") == 0) use1805 = -1;
     if (strcmp(option,"-b") == 0) outMode = 'B';
     if (strcmp(option,"-i") == 0) outMode = 'I';
@@ -1908,6 +1910,34 @@ void processOption(char* option) {
     if (strcmp(option,"-cr") == 0) strcpy(lineEnding,"\r");
     if (strcmp(option,"-crlf") == 0) strcpy(lineEnding,"\r\n");
     if (strcmp(option,"-lfcr") == 0) strcpy(lineEnding,"\n\r");
+    if (strncmp(option,"-D",2) == 0) {
+      option += 2;
+      strcpy(def,option);
+      equals = strchr(def,'=');
+      numClDefines++;
+      if (numClDefines == 1) {
+        clDefines = (char**)malloc(sizeof(char*));
+        clDefineValues = (char**)malloc(sizeof(char*));
+        }
+      else {
+        clDefines = (char**)realloc(clDefines,sizeof(char*)*numClDefines);
+        clDefineValues = (char**)realloc(clDefineValues,sizeof(char*)*numClDefines);
+        }
+      if (equals != NULL) {
+        *equals = 0;
+        equals++;
+        clDefines[numClDefines-1] = (char*)malloc(strlen(def)+1);
+        clDefineValues[numClDefines-1] = (char*)malloc(strlen(equals)+1);
+        strcpy(clDefines[numClDefines-1], def);
+        strcpy(clDefineValues[numClDefines-1], equals);
+        }
+      else {
+        clDefines[numClDefines-1] = (char*)malloc(strlen(option)+1);
+        clDefineValues[numClDefines-1] = (char*)malloc(2);
+        strcpy(clDefines[numClDefines-1], option);
+        strcpy(clDefineValues[numClDefines-1], "1");
+        }
+      }
     if (strcmp(option,"-melf") == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
@@ -2104,19 +2134,25 @@ void assembleFile(char* sourceFile, int argc, char** argv) {
   fclose(buildFile);
   
 
-  for (i=0; i<argc; i++) {
-    if (strncmp(argv[i],"-D",2) == 0) {
-      addDefine(argv[i]+2,"1");
-      }
-    }
+//  for (i=0; i<argc; i++) {
+//    if (strncmp(argv[i],"-D",2) == 0) {
+//      addDefine(argv[i]+2,"1");
+//      }
+//    }
+
+  for (i=0; i<numClDefines; i++)
+    addDefine(clDefines[i], clDefineValues[i]);
+
   i = pass(1, sourceFile);
   numDefines = 0;
   if (i == 0 && errors == 0) {
-    for (i=0; i<argc; i++) {
-      if (strncmp(argv[i],"-D",2) == 0) {
-        addDefine(argv[i]+2,"1");
-        }
-      }
+//    for (i=0; i<argc; i++) {
+//      if (strncmp(argv[i],"-D",2) == 0) {
+//        addDefine(argv[i]+2,"1");
+//        }
+//      }
+    for (i=0; i<numClDefines; i++)
+      addDefine(clDefines[i], clDefineValues[i]);
     i = pass(2, sourceFile);
     if (outMode == 'B' && i == 0 && errors == 0) {
       outFile = open(outName,O_CREAT|O_TRUNC|O_WRONLY|O_BINARY,0666);
