@@ -1960,7 +1960,6 @@ void processOption(char* option) {
         incPath = (char**)realloc(incPath,sizeof(char*)*numIncPath);
       incPath[numIncPath-1] = (char*)malloc(strlen(option)+1);
       strcpy(incPath[numIncPath-1], option);
-printf("adding %s to include path\n",option);
       }
 
     if (strcmp(option,"-melf") == 0) {
