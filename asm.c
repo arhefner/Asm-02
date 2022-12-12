@@ -1168,6 +1168,7 @@ char* nextLine(char* line) {
                   }
                 if (sourceFile[fileNumber] == NULL) {
                   printf("***ERROR: Could not open: %s\n",buffer);
+                  fileNumber--;
                   errors++;
                   }
                 }
