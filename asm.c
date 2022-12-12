@@ -922,10 +922,6 @@ void processDs(word arg) {
   if (passNumber == 2 && outCount > 0) {
     writeOutput();
     }
-  if (passNumber == 2) {
-    sprintf(buffer,">%04x\n",arg);
-    write(outFile, buffer, strlen(buffer));
-    }
   outAddress = address;
   outCount = 0;
   }
@@ -2243,7 +2239,7 @@ int main(int argc, char** argv) {
   int i;
   time_t tv;
   struct tm dt;
-  printf("Asm/02 v1.1\n");
+  printf("Asm/02 v1.2\n");
   printf("by Michael H. Riley\n");
   createLst = 0;
   outMode = 'R';
