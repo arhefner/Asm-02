@@ -232,6 +232,23 @@ char* trim(char* line) {
   return line;
   }
 
+char* strip(char* line) {
+  char* pchar;
+  int quoted = 0;
+  while (*line == ' ' || *line == '\t') line++;
+  for (pchar = line; *pchar != 0; pchar++) {
+    if (*pchar == '\'' || *pchar == '"') {
+      quoted = !quoted;
+      }
+    else if (*pchar == ';' && !quoted) {
+        *pchar++ = ' ';
+        *pchar = '\0';
+        break;
+      }
+    }
+    return line;
+  }
+
 int isAlpha(char c) {
   if (c >= 'a' && c <= 'z') return -1;
   if (c >= 'A' && c <= 'Z') return -1;
@@ -449,6 +466,7 @@ void output(byte value) {
       }
     if (createLst != 0 || showList != 0) {
       if (lstCount == 4) {
+        strcat(listLine, sourceLine);
         strcat(listLine, "\n");
         list(listLine);
         strcpy(listLine,"              ");
@@ -1121,7 +1139,7 @@ char* nextLine(char* line) {
       linesAssembled++;
       lineNumber[fileNumber]++;
       flag = 0;
-      while (*ret == ' ') ret++;
+      ret = trim(ret);
       if (*ret == '#') {
 
         if (nests[numNests] != 'I') {
@@ -1162,7 +1180,7 @@ char* nextLine(char* line) {
               while (*ret != 0 && *ret > ' ')
                 buffer[pos++] = *ret++;
               buffer[pos] = 0;
-              while (*ret == ' ' || *ret == '\t') ret++;
+              ret = strip(ret);
               if (*ret == 0) addDefine(buffer,"1");
                 else addDefine(buffer, ret);
               }
@@ -1861,7 +1879,9 @@ void Asm(char* line) {
         strcat(listLine, "   ");
         lstCount++;
         }
-      strcat(listLine, sourceLine);
+      if (lstCount <= 4) {
+        strcat(listLine, sourceLine);
+        }
       strcat(listLine, "\n");
       list(listLine);
       }
