@@ -922,6 +922,10 @@ void processDs(word arg) {
   if (passNumber == 2 && outCount > 0) {
     writeOutput();
     }
+  if (passNumber == 2 && outMode == 'R') {
+    sprintf(buffer,">%04x\n",arg);
+    write(outFile, buffer, strlen(buffer));
+    }
   outAddress = address;
   outCount = 0;
   }
@@ -1242,7 +1246,7 @@ char* nextLine(char* line) {
               }
             else {
               ret += 4;
-              while (*ret == ' ' || *ret == '\t') ret++;
+              ret = strip(ret);
               defReplace(ret);
               evaluate(ret, &dvalue);
               value = dvalue;
@@ -1630,6 +1634,30 @@ void Asm(char* line) {
           b = ((operands[c] >> 8) & 0xff);
           valid = 0xff;
           }
+
+        if (c == 't' || c == 'T') {
+          i++;
+           if (passNumber == 2 && usedLocal >= 0) {
+             fixups[numFixups] = address;
+             fixupTypes[numFixups] = 'T';
+             numFixups++;
+             }
+          if (valid) output(b);
+          c = translation[macro][i] - '1';
+          if (passNumber == 2 && operandsEType[c] != ' ') {
+            sprintf(buffer,"\\%s %04x\n",labels[operandsERef[c]],address);
+            write(outFile, buffer, strlen(buffer));
+             }
+          if (passNumber == 2 && (operands[c] & 0xff00) != (address & 0xff00)) {
+             if (fileNumber == 0)
+                printf("[%05d]: Short branch out of page\n",lineNumber[fileNumber]);
+             else
+                printf("<%05d>: Short branch out of page\n",lineNumber[fileNumber]);
+             errors++;
+             }
+          if (c >= 0 && c<= 9) b = (operands[c] & 0xff);
+          valid = 0xff;
+          }
         i++;
         }
       if (valid) output(b);
@@ -1675,6 +1703,11 @@ void Asm(char* line) {
                else
                  printf("<%05d>: Short branch out of page\n",lineNumber[fileNumber]);
                errors++;
+               }
+             if (passNumber == 2 && usedLocal >= 0) {
+               fixups[numFixups] = address;
+               fixupTypes[numFixups] = 'T';
+               numFixups++;
                }
              output(value & 0xff);
              break;
@@ -1832,6 +1865,8 @@ void Asm(char* line) {
                    }
                  if (fixupTypes[i] == 'L')
                    sprintf(buffer,"v%04x\n",fixups[i]);
+                 if (fixupTypes[i] == 'T')
+                   sprintf(buffer,"<%04x\n",fixups[i]);
                  write(outFile, buffer, strlen(buffer));
                  }
                sprintf(buffer,"}\n");
