@@ -1622,7 +1622,7 @@ void Asm(char* line) {
            if (passNumber == 2 && usedLocal >= 0) {
              fixups[numFixups] = address;
              fixupTypes[numFixups] = 'H';
-             fixupLowOffset[numFixups] = ((operands[translation[macro][i] - '1'] & 0xff) - referenceLowOffset) & 0xff;
+             fixupLowOffset[numFixups] = referenceLowOffset;
              numFixups++;
              }
           if (valid) output(b);
