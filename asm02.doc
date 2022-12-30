@@ -32,6 +32,7 @@
      A-F - Nybble after 4-bit left shift
      Hn  - High byte of argument n
      Ln  - Low byte of argument n
+     Tn  - Low byte of argument n, error if not in current page
      $n  - Or with argument n after 4-bit left shift
      Wn  - Output the two bytes of word argument n
 

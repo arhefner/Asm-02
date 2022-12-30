@@ -152,9 +152,9 @@ LINK int    numExternals;
 LINK int    usedReference;
 LINK char   referenceType;
 LINK byte   referenceLowOffset;
-LINK word   fixups[10000];
-LINK char   fixupTypes[10000];
-LINK byte   fixupLowOffset[10000];
+LINK word   fixups[30000];
+LINK char   fixupTypes[30000];
+LINK byte   fixupLowOffset[30000];
 LINK int    numFixups;
 LINK int    usedLocal;
 
