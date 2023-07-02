@@ -232,6 +232,23 @@ char* trim(char* line) {
   return line;
   }
 
+char* strip(char* line) {
+  char* pchar;
+  int quoted = 0;
+  while (*line == ' ' || *line == '\t') line++;
+  for (pchar = line; *pchar != 0; pchar++) {
+    if (*pchar == '\'' || *pchar == '"') {
+      quoted = !quoted;
+      }
+    else if (*pchar == ';' && !quoted) {
+        *pchar++ = ' ';
+        *pchar = '\0';
+        break;
+      }
+    }
+    return line;
+  }
+
 int isAlpha(char c) {
   if (c >= 'a' && c <= 'z') return -1;
   if (c >= 'A' && c <= 'Z') return -1;
@@ -449,6 +466,7 @@ void output(byte value) {
       }
     if (createLst != 0 || showList != 0) {
       if (lstCount == 4) {
+        strcat(listLine, sourceLine);
         strcat(listLine, "\n");
         list(listLine);
         strcpy(listLine,"              ");
@@ -508,6 +526,7 @@ char* asm_convertNumber(char* buffer, dword* value, byte* success) {
     else {
       *value = asmAddress;
       *success = 0xff;
+      usedLocal = 1;
       return buffer;
       }
     }
@@ -904,7 +923,7 @@ void processDs(word arg) {
   if (passNumber == 2 && outCount > 0) {
     writeOutput();
     }
-  if (passNumber == 2) {
+  if (passNumber == 2 && outMode == 'R') {
     sprintf(buffer,">%04x\n",arg);
     write(outFile, buffer, strlen(buffer));
     }
@@ -1121,131 +1140,148 @@ char* nextLine(char* line) {
       linesAssembled++;
       lineNumber[fileNumber]++;
       flag = 0;
-      while (*ret == ' ') ret++;
+      ret = trim(ret);
       if (*ret == '#') {
+        if (nests[numNests] == 'Y') {
 
-        if (nests[numNests] != 'I') {
-
-          if (nests[numNests] == 'Y') {
-
-            if (strncmp(ret,"#include ",9) == 0) {
-              ret += 9;
-              while (*ret == ' ' || *ret == '\t') ret++;
-              pos = 0;
-              while (*ret != 0 && *ret > ' ')
-                buffer[pos++] = *ret++;
-              buffer[pos] = 0;
-              fileNumber++;
-              lineNumber[fileNumber] = 0;
-              sourceFile[fileNumber] = fopen(buffer,"r");
+          if (strncmp(ret,"#include ",9) == 0) {
+            ret += 9;
+            while (*ret == ' ' || *ret == '\t') ret++;
+            pos = 0;
+            while (*ret != 0 && *ret > ' ')
+              buffer[pos++] = *ret++;
+            buffer[pos] = 0;
+            fileNumber++;
+            lineNumber[fileNumber] = 0;
+            sourceFile[fileNumber] = fopen(buffer,"r");
+            if (sourceFile[fileNumber] == NULL) {
+              i = 0;
+              while (i < numIncPath) {
+                strcpy(path, incPath[i]);
+                if (path[strlen(path)-1] != '/') strcat(path,"/");
+                strcat(path, buffer);
+                sourceFile[fileNumber] = fopen(path, "r");
+                if (sourceFile[fileNumber] != NULL) i = numIncPath;
+                i++;
+                }
               if (sourceFile[fileNumber] == NULL) {
-                i = 0;
-                while (i < numIncPath) {
-                  strcpy(path, incPath[i]);
-                  if (path[strlen(path)-1] != '/') strcat(path,"/");
-                  strcat(path, buffer);
-                  sourceFile[fileNumber] = fopen(path, "r");
-                  if (sourceFile[fileNumber] != NULL) i = numIncPath;
-                  i++;
-                  }
-                if (sourceFile[fileNumber] == NULL) {
-                  printf("***ERROR: Could not open: %s\n",buffer);
-                  errors++;
-                  }
+                printf("***ERROR: Could not open: %s\n",buffer);
+                fileNumber--;
+                errors++;
                 }
               }
+            }
 
-            if (strncmp(ret,"#define ",8) == 0) {
-              ret += 8;
-              while (*ret == ' ' || *ret == '\t') ret++;
-              pos = 0;
-              while (*ret != 0 && *ret > ' ')
-                buffer[pos++] = *ret++;
-              buffer[pos] = 0;
-              while (*ret == ' ' || *ret == '\t') ret++;
-              if (*ret == 0) addDefine(buffer,"1");
-                else addDefine(buffer, ret);
-              }
+          if (strncmp(ret,"#define ",8) == 0) {
+            ret += 8;
+            while (*ret == ' ' || *ret == '\t') ret++;
+            pos = 0;
+            while (*ret != 0 && *ret > ' ')
+              buffer[pos++] = *ret++;
+            buffer[pos] = 0;
+            ret = strip(ret);
+            if (*ret == 0) addDefine(buffer,"1");
+              else addDefine(buffer, ret);
+            }
 
-            if (strncasecmp(ret,"#error",6) == 0) {
+          if (strncasecmp(ret,"#error",6) == 0) {
+            ret += 6;
+            ret = trim(ret);
+            printf("***ERROR: %s\n",ret);
+            errors++;
+            }
+
+          if (strncasecmp(ret,"#undef",6) == 0) {
+            ret += 6;
+            ret = trim(ret);
+            delDefine(ret);
+            }
+          }
+
+        if (strncmp(ret,"#ifdef ",7) == 0) {
+          if (nests[numNests] == 'Y') {
+            ret += 7;
+            while (*ret == ' ' || *ret == '\t') ret++;
+            pos = 0;
+            while (*ret != 0 && *ret > ' ')
+              buffer[pos++] = *ret++;
+            buffer[pos] = 0;
+            pchar = findDefine(buffer);
+            numNests++;
+            if (pchar != NULL) nests[numNests] = 'Y';
+              else nests[numNests] = 'N';
+            }
+          else {
+            numNests++;
+            nests[numNests] = 'I';
+            }
+          }
+
+        if (strncmp(ret,"#ifndef ",8) == 0) {
+          if (nests[numNests] == 'Y') {
+            ret += 8;
+            while (*ret == ' ' || *ret == '\t') ret++;
+            pos = 0;
+            while (*ret != 0 && *ret > ' ')
+              buffer[pos++] = *ret++;
+            buffer[pos] = 0;
+            pchar = findDefine(buffer);
+            numNests++;
+            if (pchar != NULL) nests[numNests] = 'N';
+              else nests[numNests] = 'Y';
+            }
+          else {
+            numNests++;
+            nests[numNests] = 'I';
+            }
+          }
+
+        if (strncmp(ret,"#if ",4) == 0) {
+          if (nests[numNests] == 'Y') {
+            ret += 4;
+            ret = strip(ret);
+            defReplace(ret);
+            evaluate(ret, &dvalue);
+            value = dvalue;
+            numNests++;
+            if (value != 0) nests[numNests] = 'Y';
+              else nests[numNests] = 'N';
+            }
+          else {
+            numNests++;
+            nests[numNests] = 'I';
+            }
+          }
+
+        if (strncmp(ret,"#elif ",6) == 0) {
+          if (numNests > 0) {
+            if (nests[numNests] == 'N') {
               ret += 6;
-              ret = trim(ret);
-              printf("***ERROR: %s\n",ret);
-              errors++;
-              }
-
-            if (strncasecmp(ret,"#undef",6) == 0) {
-              ret += 6;
-              ret = trim(ret);
-              delDefine(ret);
-              }
-
-            }
-
-          if (strncmp(ret,"#ifdef ",7) == 0) {
-            if (nests[numNests] == 'N') {
-              numNests++;
-              nests[numNests] = 'I';
-              }
-            else {
-              ret += 7;
-              while (*ret == ' ' || *ret == '\t') ret++;
-              pos = 0;
-              while (*ret != 0 && *ret > ' ')
-                buffer[pos++] = *ret++;
-              buffer[pos] = 0;
-              pchar = findDefine(buffer);
-              numNests++;
-              if (pchar != NULL) nests[numNests] = 'Y';
-                else nests[numNests] = 'N';
-              }
-            }
-
-          if (strncmp(ret,"#ifndef ",8) == 0) {
-            if (nests[numNests] == 'N') {
-              numNests++;
-              nests[numNests] = 'I';
-              }
-            else {
-              ret += 8;
-              while (*ret == ' ' || *ret == '\t') ret++;
-              pos = 0;
-              while (*ret != 0 && *ret > ' ')
-                buffer[pos++] = *ret++;
-              buffer[pos] = 0;
-              pchar = findDefine(buffer);
-              numNests++;
-              if (pchar != NULL) nests[numNests] = 'N';
-                else nests[numNests] = 'Y';
-              }
-            }
-
-          if (strncmp(ret,"#if ",4) == 0) {
-            if (nests[numNests] == 'N') {
-              numNests++;
-              nests[numNests] = 'I';
-              }
-            else {
-              ret += 4;
-              while (*ret == ' ' || *ret == '\t') ret++;
+              ret = strip(ret);
               defReplace(ret);
               evaluate(ret, &dvalue);
               value = dvalue;
-              numNests++;
               if (value != 0) nests[numNests] = 'Y';
-                else nests[numNests] = 'N';
               }
-            }
-
-          if (strncmp(ret,"#else",5) == 0) {
-            if (numNests > 0)
-              nests[numNests] = (nests[numNests] == 'Y') ? 'N' : 'Y';
             else {
-              printf("***Error: Unmatched #else\n");
-              errors++;
+              nests[numNests] = 'I';
               }
             }
+          else {
+            printf("***Error: Unmatched #elif\n");
+            errors++;
+            }
+          }
 
+        if (strncmp(ret,"#else",5) == 0) {
+          if (numNests > 0) {
+            if (nests[numNests] != 'I')
+              nests[numNests] = (nests[numNests] == 'Y') ? 'N' : 'Y';
+            }
+          else {
+            printf("***Error: Unmatched #else\n");
+            errors++;
+            }
           }
 
         if (strncmp(ret,"#endif",6) == 0) {
@@ -1344,91 +1380,94 @@ void Asm(char* line) {
       if (strncasecmp(line,"128",3) == 0) address = (address+127) & 0xff80;
       if (strncasecmp(line,"page",4) == 0) address = (address+255) & 0xff00;
       outAddress = address;
-      return;
       }
-    if (strncasecmp(line,".1805",5) == 0) {
+    else if (strncasecmp(line,".1805",5) == 0) {
       use1805 = 0xff;
-      return;
       }
-    if (strncasecmp(line,".list",5) == 0) {
+    else if (strncasecmp(line,".list",5) == 0) {
       showList = 0xff;
-      return;
        }
-    if (strncasecmp(line,".sym",4) == 0) {
+    else if (strncasecmp(line,".sym",4) == 0) {
       showSymbols = 0xff;
-      return;
       }
-    if (strncasecmp(line,".op ",4) == 0) {
+    else if (strncasecmp(line,".op ",4) == 0) {
       compileOp(line+4);
-      return;
       }
-    if (strncasecmp(line,".intel",6) == 0) {
+    else if (strncasecmp(line,".intel",6) == 0) {
       outMode = 'I';
-      return;
       }
-    if (strncasecmp(line,".rcs",4) == 0) {
+    else if (strncasecmp(line,".rcs",4) == 0) {
       outMode = 'R';
-      return;
       }
-    if (strncasecmp(line,".binary",7) == 0) {
+    else if (strncasecmp(line,".binary",7) == 0) {
       outMode = 'B';
-      return;
       }
-    if (strncasecmp(line,".arch=melf",10) == 0) {
+    else if (strncasecmp(line,".arch=melf",10) == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
       }
-    if (strncasecmp(line,".arch=pev",9) == 0) {
+    else if (strncasecmp(line,".arch=pev",9) == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
       }
-    if (strncasecmp(line,".arch=pev2",10) == 0) {
+    else if (strncasecmp(line,".arch=pev2",10) == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
       }
-    if (strncasecmp(line,".arch=elf2k",11) == 0) {
+    else if (strncasecmp(line,".arch=elf2k",11) == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
       }
-    if (strncasecmp(line,".arch=mclo",10) == 0) {
+    else if (strncasecmp(line,".arch=mclo",10) == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
       }
-    if (strncasecmp(line,".arch=mchi",10) == 0) {
+    else if (strncasecmp(line,".arch=mchi",10) == 0) {
       ramStart = 0x8000;
       ramEnd = 0xffff;
       romStart = 0x0000;
       romEnd = 0x7fff;
       }
-    if (strncasecmp(line,".arch=mchip",11) == 0) {
+    else if (strncasecmp(line,".arch=mchip",11) == 0) {
       ramStart = 0x8000;
       ramEnd = 0xffff;
       romStart = 0x0000;
       romEnd = 0x7fff;
       }
-    if (strncasecmp(line,".link ",6) == 0) {
+    else if (strncasecmp(line,".link ",6) == 0) {
       line += 6;
       while (*line == ' ' || *line == '\t') line++;
       if (passNumber == 2 && outMode == 'R') {
         sprintf(buffer,"%s\n",line);
         write(outFile, buffer, strlen(buffer));
         }
-      return;
       }
-    }
-
-  if (strncasecmp(line,".suppress",9) == 0) {
-    suppression = -1;
+    else if (strncasecmp(line,".suppress",9) == 0) {
+      suppression = -1;
+      }
+    else {
+      label[0] = *line++;
+      pos = 1;
+      while ((*line >= 'a' && *line <= 'z') ||
+             (*line >= 'A' && *line <= 'Z') ||
+             (*line >= '0' && *line <= '9')) {
+               label[pos++] = *line++;
+        }
+        label[pos] = 0;
+        printf("***ERROR: Unrecognized assembler directive: '%s'\n", label);
+        errors++;
+        sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
+      }
     return;
     }
 
@@ -1447,8 +1486,7 @@ void Asm(char* line) {
       }
     label[pos] = 0;
     if (*line != ':') {
-      printf("***ERROR: Invalid label");
-      printf("%s\n",orig);
+      printf("***ERROR: Missing ':' at label '%s'\n", label);
       errors++;
       sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
@@ -1457,6 +1495,13 @@ void Asm(char* line) {
     }
 
   line = trim(line);
+  if (*line == '#') {
+    printf("***ERROR: Preprocessor directives must be at start of line\n");
+    errors++;
+    sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
+    return;
+    }
+
   if ((*line >= 'a' && *line <= 'z') ||
       (*line >= 'A' && *line <= 'Z')) {
     pos = 0;
@@ -1603,7 +1648,7 @@ void Asm(char* line) {
            if (passNumber == 2 && usedLocal >= 0) {
              fixups[numFixups] = address;
              fixupTypes[numFixups] = 'H';
-             fixupLowOffset[numFixups] = ((operands[translation[macro][i] - '1'] & 0xff) - referenceLowOffset) & 0xff;
+             fixupLowOffset[numFixups] = referenceLowOffset;
              numFixups++;
              }
           if (valid) output(b);
@@ -1613,6 +1658,30 @@ void Asm(char* line) {
             write(outFile, buffer, strlen(buffer));
             }
           b = ((operands[c] >> 8) & 0xff);
+          valid = 0xff;
+          }
+
+        if (c == 't' || c == 'T') {
+          i++;
+           if (passNumber == 2 && usedLocal >= 0) {
+             fixups[numFixups] = address;
+             fixupTypes[numFixups] = 'T';
+             numFixups++;
+             }
+          if (valid) output(b);
+          c = translation[macro][i] - '1';
+          if (passNumber == 2 && operandsEType[c] != ' ') {
+            sprintf(buffer,"\\%s %04x\n",labels[operandsERef[c]],address);
+            write(outFile, buffer, strlen(buffer));
+             }
+          if (passNumber == 2 && (operands[c] & 0xff00) != (address & 0xff00)) {
+             if (fileNumber == 0)
+                printf("[%05d]: Short branch out of page\n",lineNumber[fileNumber]);
+             else
+                printf("<%05d>: Short branch out of page\n",lineNumber[fileNumber]);
+             errors++;
+             }
+          if (c >= 0 && c<= 9) b = (operands[c] & 0xff);
           valid = 0xff;
           }
         i++;
@@ -1660,6 +1729,11 @@ void Asm(char* line) {
                else
                  printf("<%05d>: Short branch out of page\n",lineNumber[fileNumber]);
                errors++;
+               }
+             if (passNumber == 2 && usedLocal >= 0) {
+               fixups[numFixups] = address;
+               fixupTypes[numFixups] = 'T';
+               numFixups++;
                }
              output(value & 0xff);
              break;
@@ -1817,6 +1891,8 @@ void Asm(char* line) {
                    }
                  if (fixupTypes[i] == 'L')
                    sprintf(buffer,"v%04x\n",fixups[i]);
+                 if (fixupTypes[i] == 'T')
+                   sprintf(buffer,"<%04x\n",fixups[i]);
                  write(outFile, buffer, strlen(buffer));
                  }
                sprintf(buffer,"}\n");
@@ -1861,7 +1937,9 @@ void Asm(char* line) {
         strcat(listLine, "   ");
         lstCount++;
         }
-      strcat(listLine, sourceLine);
+      if (lstCount <= 4) {
+        strcat(listLine, sourceLine);
+        }
       strcat(listLine, "\n");
       list(listLine);
       }
@@ -2222,7 +2300,7 @@ int main(int argc, char** argv) {
   int i;
   time_t tv;
   struct tm dt;
-  printf("Asm/02 v1.1\n");
+  printf("Asm/02 v1.3\n");
   printf("by Michael H. Riley\n");
   createLst = 0;
   outMode = 'R';
