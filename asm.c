@@ -526,6 +526,7 @@ char* asm_convertNumber(char* buffer, dword* value, byte* success) {
     else {
       *value = asmAddress;
       *success = 0xff;
+      usedLocal = 1;
       return buffer;
       }
     }
@@ -1379,91 +1380,94 @@ void Asm(char* line) {
       if (strncasecmp(line,"128",3) == 0) address = (address+127) & 0xff80;
       if (strncasecmp(line,"page",4) == 0) address = (address+255) & 0xff00;
       outAddress = address;
-      return;
       }
-    if (strncasecmp(line,".1805",5) == 0) {
+    else if (strncasecmp(line,".1805",5) == 0) {
       use1805 = 0xff;
-      return;
       }
-    if (strncasecmp(line,".list",5) == 0) {
+    else if (strncasecmp(line,".list",5) == 0) {
       showList = 0xff;
-      return;
        }
-    if (strncasecmp(line,".sym",4) == 0) {
+    else if (strncasecmp(line,".sym",4) == 0) {
       showSymbols = 0xff;
-      return;
       }
-    if (strncasecmp(line,".op ",4) == 0) {
+    else if (strncasecmp(line,".op ",4) == 0) {
       compileOp(line+4);
-      return;
       }
-    if (strncasecmp(line,".intel",6) == 0) {
+    else if (strncasecmp(line,".intel",6) == 0) {
       outMode = 'I';
-      return;
       }
-    if (strncasecmp(line,".rcs",4) == 0) {
+    else if (strncasecmp(line,".rcs",4) == 0) {
       outMode = 'R';
-      return;
       }
-    if (strncasecmp(line,".binary",7) == 0) {
+    else if (strncasecmp(line,".binary",7) == 0) {
       outMode = 'B';
-      return;
       }
-    if (strncasecmp(line,".arch=melf",10) == 0) {
+    else if (strncasecmp(line,".arch=melf",10) == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
       }
-    if (strncasecmp(line,".arch=pev",9) == 0) {
+    else if (strncasecmp(line,".arch=pev",9) == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
       }
-    if (strncasecmp(line,".arch=pev2",10) == 0) {
+    else if (strncasecmp(line,".arch=pev2",10) == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
       }
-    if (strncasecmp(line,".arch=elf2k",11) == 0) {
+    else if (strncasecmp(line,".arch=elf2k",11) == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
       }
-    if (strncasecmp(line,".arch=mclo",10) == 0) {
+    else if (strncasecmp(line,".arch=mclo",10) == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
       }
-    if (strncasecmp(line,".arch=mchi",10) == 0) {
+    else if (strncasecmp(line,".arch=mchi",10) == 0) {
       ramStart = 0x8000;
       ramEnd = 0xffff;
       romStart = 0x0000;
       romEnd = 0x7fff;
       }
-    if (strncasecmp(line,".arch=mchip",11) == 0) {
+    else if (strncasecmp(line,".arch=mchip",11) == 0) {
       ramStart = 0x8000;
       ramEnd = 0xffff;
       romStart = 0x0000;
       romEnd = 0x7fff;
       }
-    if (strncasecmp(line,".link ",6) == 0) {
+    else if (strncasecmp(line,".link ",6) == 0) {
       line += 6;
       while (*line == ' ' || *line == '\t') line++;
       if (passNumber == 2 && outMode == 'R') {
         sprintf(buffer,"%s\n",line);
         write(outFile, buffer, strlen(buffer));
         }
-      return;
       }
-    }
-
-  if (strncasecmp(line,".suppress",9) == 0) {
-    suppression = -1;
+    else if (strncasecmp(line,".suppress",9) == 0) {
+      suppression = -1;
+      }
+    else {
+      label[0] = *line++;
+      pos = 1;
+      while ((*line >= 'a' && *line <= 'z') ||
+             (*line >= 'A' && *line <= 'Z') ||
+             (*line >= '0' && *line <= '9')) {
+               label[pos++] = *line++;
+        }
+        label[pos] = 0;
+        printf("***ERROR: Unrecognized assembler directive: '%s'\n", label);
+        errors++;
+        sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
+      }
     return;
     }
 
@@ -1482,8 +1486,7 @@ void Asm(char* line) {
       }
     label[pos] = 0;
     if (*line != ':') {
-      printf("***ERROR: Invalid label");
-      printf("%s\n",orig);
+      printf("***ERROR: Missing ':' at label '%s'\n", label);
       errors++;
       sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
@@ -1492,6 +1495,13 @@ void Asm(char* line) {
     }
 
   line = trim(line);
+  if (*line == '#') {
+    printf("***ERROR: Preprocessor directives must be at start of line\n");
+    errors++;
+    sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
+    return;
+    }
+
   if ((*line >= 'a' && *line <= 'z') ||
       (*line >= 'A' && *line <= 'Z')) {
     pos = 0;
@@ -2290,7 +2300,7 @@ int main(int argc, char** argv) {
   int i;
   time_t tv;
   struct tm dt;
-  printf("Asm/02 v1.2\n");
+  printf("Asm/02 v1.3\n");
   printf("by Michael H. Riley\n");
   createLst = 0;
   outMode = 'R';
