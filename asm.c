@@ -430,7 +430,7 @@ void writeOutput() {
     write(outFile, outLine, strlen(outLine));
     }
   if (outMode == 'B') {
-//    write(outFile, outBuffer, outCount);
+    write(outFile, outBuffer, outCount);
     }
   }
 
@@ -735,7 +735,10 @@ char* evaluate(char *pos, dword* result) {
              else op = OP_GT;
              break;
         }
-      if (op == 0) { printf("Invalid OP %c (%02x)\n",*pos, *pos); return 0; }
+      if (op == 0) {
+        printf("%s Invalid OP %c (%02x)\n",lineNo(),*pos, *pos);
+        exit(1);
+        }
       while (ostack > 0 && (ops[ostack-1] & 0xf0) >= (op & 0xf0)) {
         nstack--;
         ostack--;
@@ -1045,7 +1048,7 @@ void addDefine(char* define, char* value) {
   int i;
   for (i=0; i<numDefines; i++)
     if (strcasecmp(define, defines[i]) == 0) {
-      printf("***ERROR: Duplicate define: %s\n",define);
+      printf("%s Duplicate define: %s\n",lineNo(),define);
       errors++;
       return;
       }
@@ -1187,7 +1190,7 @@ char* nextLine(char* line) {
           if (strncasecmp(ret,"#error",6) == 0) {
             ret += 6;
             ret = trim(ret);
-            printf("***ERROR: %s\n",ret);
+            printf("*%s %s\n",lineNo(),ret);
             errors++;
             }
 
@@ -1268,7 +1271,7 @@ char* nextLine(char* line) {
               }
             }
           else {
-            printf("***Error: Unmatched #elif\n");
+            printf("%s Unmatched #elif\n",lineNo());
             errors++;
             }
           }
@@ -1279,7 +1282,7 @@ char* nextLine(char* line) {
               nests[numNests] = (nests[numNests] == 'Y') ? 'N' : 'Y';
             }
           else {
-            printf("***Error: Unmatched #else\n");
+            printf("%s Unmatched #else\n",lineNo());
             errors++;
             }
           }
@@ -1287,7 +1290,7 @@ char* nextLine(char* line) {
         if (strncmp(ret,"#endif",6) == 0) {
           if (numNests > 0) numNests--;
           else {
-            printf("***Error: Unmatched #endif\n");
+            printf("*%s Unmatched #endif\n",lineNo());
             errors++;
             }
           }
@@ -1343,22 +1346,22 @@ void Asm(char* line) {
   char *orig;
   char  label[32];
   char  opcode[32];
-  char  args[128];
+  char  args[256];
   word  operands[32];
   char  operandsEType[32];
   int   operandsERef[32];
   byte  isreg[32];
-  char  *opline;
+  char *opline;
   int   opcount;
   char *pargs;
-  char  buffer[256];
-  dword  value;
-  int    macro;
+  char  buffer[260];
+  dword value;
+  int   macro;
   byte  flag;
   byte  c;
   int   i,j;
   byte  b;
-  byte valid;
+  byte  valid;
   char  lst[1024];
   usedReference = -1;
   orig = sourceLine;
@@ -1464,7 +1467,7 @@ void Asm(char* line) {
                label[pos++] = *line++;
         }
         label[pos] = 0;
-        printf("***ERROR: Unrecognized assembler directive: '%s'\n", label);
+        printf("%s Unrecognized assembler directive: '%s'\n", lineNo(), label);
         errors++;
         sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       }
@@ -1486,7 +1489,7 @@ void Asm(char* line) {
       }
     label[pos] = 0;
     if (*line != ':') {
-      printf("***ERROR: Missing ':' at label '%s'\n", label);
+      printf("%s Missing ':' at label '%s'\n", lineNo(), label);
       errors++;
       sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
@@ -1496,7 +1499,7 @@ void Asm(char* line) {
 
   line = trim(line);
   if (*line == '#') {
-    printf("***ERROR: Preprocessor directives must be at start of line\n");
+    printf("%s Preprocessor directives must be at start of line\n", lineNo());
     errors++;
     sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
     return;
@@ -1551,7 +1554,7 @@ void Asm(char* line) {
           }
         opline = trim(opline);
         if (*opline != 0 && *opline != ',') {
-          printf("ERROR: Invalid operand list: %s\n",orig);
+          printf("%s Invalid operand list: %s\n",lineNo(),orig);
           exit(1);
           }
         if (*opline == ',') opline++;
@@ -1575,7 +1578,7 @@ void Asm(char* line) {
           }
       }
     if (pos < 0 && macro == -1) {
-      printf("***ERROR: Unknown opcode: %s\n",opcode);
+      printf("%s Unknown opcode: %s\n",lineNo(),opcode);
       errors++;
       sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
@@ -1811,7 +1814,7 @@ void Asm(char* line) {
                output(value & 0xff);
                }
              else {
-               printf("***ERROR: Missing argument\n");
+               printf("%s Missing argument\n",lineNo());
                errors++;
                }
              break;
@@ -1871,7 +1874,7 @@ void Asm(char* line) {
              break;
         case OT_ENDP:
              if (inProc == 0) {
-               printf("***ERROR: ENDP encountered outside PROC\n");
+               printf("%s ENDP encountered outside PROC\n",lineNo());
                errors++;
                }
              if (passNumber == 2 && outCount > 0) {
@@ -1927,7 +1930,7 @@ void Asm(char* line) {
              output(buildNumber & 0xff);
              break;
         default:
-             printf("***ERROR: Unknown instruction type: %d\n",opcodes[pos].typ);
+             printf("%s Unknown instruction type: %d\n",lineNo(),opcodes[pos].typ);
              errors++;
              break;
         }
@@ -2129,7 +2132,7 @@ int pass(int p, char* srcFile) {
     }
   fclose(sourceFile[0]);
   if (inProc) {
-    printf("***ERROR: PROC without ENDP\n");
+    printf("%s PROC without ENDP\n",lineNo());
     errors++;
     }
   if (passNumber == 2 && outCount > 0) writeOutput();    
