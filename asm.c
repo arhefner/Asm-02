@@ -1451,6 +1451,11 @@ void Asm(char* line) {
       line += 6;
       while (*line == ' ' || *line == '\t') line++;
       if (passNumber == 2 && outMode == 'R') {
+        /* Flush any pending output. */
+        if (outCount != 0) {
+          writeOutput();
+          outCount = 0;
+        }
         sprintf(buffer,"%s\n",line);
         write(outFile, buffer, strlen(buffer));
         }
