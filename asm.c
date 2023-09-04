@@ -223,9 +223,18 @@ void list(char* message) {
 char* lineNo() {
   static char buffer[10];
   if (fileNumber == 0) sprintf(buffer, "[%05d]",lineNumber[fileNumber]);
-    else sprintf(buffer, "<%05d>",lineNumber[fileNumber]);
+  else sprintf(buffer, "<%05d>",lineNumber[fileNumber]);
   return buffer;
   }
+
+char* lineNoErr() {
+  static char buffer[128];
+  if (fileNumber == 0) sprintf(buffer, "File: %s [%05d]",sourceFiles[fileNumber],lineNumber[fileNumber]);
+  else sprintf(buffer, "File: %s <%05d>",sourceFiles[fileNumber],lineNumber[fileNumber]);
+  return buffer;
+  }
+
+
 
 char* trim(char* line) {
   while (*line == ' ' || *line == '\t') line++;
@@ -276,6 +285,7 @@ void addLabel(char* label, word value) {
     if (strcasecmp(label, labels[i]) == 0 &&
         strcasecmp(module, labelProcs[i]) == 0) {
       printf("***ERROR: Duplicate label: %s\n",label);
+      printf("          %s\n",lineNoErr());
       printf("          %s\n",sourceLine);
       errors++;
       return;
@@ -322,7 +332,8 @@ word getLabel(char* label) {
          strcasecmp("*", labelProcs[i]) == 0))
       return labelValues[i];
   printf("***ERROR: Label not found: %s\n",label);
-  printf("%s\n",sourceLine);
+  printf("          %s\n",lineNoErr());
+  printf("          %s\n",sourceLine);
   errors++;
   return 0;
   }
@@ -355,7 +366,8 @@ int findLabel(char* label) {
       return i;
       }
   printf("***ERROR: Label not found: %s\n",label);
-  printf("%s\n",sourceLine);
+  printf("          %s\n",lineNoErr());
+  printf("          %s\n",sourceLine);
   errors++;
   return -1;
   }
@@ -368,6 +380,7 @@ void setLabel(char* label, word value) {
       return;
       }
   printf("***ERROR: Label not found: %s\n",label);
+  printf("          %s\n",lineNoErr());
   errors++;
   }
 
@@ -421,10 +434,12 @@ void output(byte value) {
   char tmp[4];
   if (compMode == 'A' && (address < ramStart || address > ramEnd)) {
     printf("***ERROR: Address exceeded available RAM");
+    printf("          %s\n",lineNoErr());
     errors++;
     }
   if (compMode == 'O' && (address < romStart || address > romEnd)) {
     printf("***ERROR: Address exceeded available ROM");
+    printf("          %s\n",lineNoErr());
     errors++;
     }
   if (passNumber == 1) {
@@ -716,7 +731,7 @@ char* evaluate(char *pos, dword* result) {
              else op = OP_GT;
              break;
         }
-      if (op == 0) { printf("Invalid OP %c (%02x)\n",*pos, *pos); return 0; }
+      if (op == 0) { printf("Invalid OP %c (%02x)\n       %s\n",*pos, *pos,lineNoErr()); return 0; }
       while (ostack > 0 && (ops[ostack-1] & 0xf0) >= (op & 0xf0)) {
         nstack--;
         ostack--;
@@ -1027,6 +1042,7 @@ void addDefine(char* define, char* value) {
   for (i=0; i<numDefines; i++)
     if (strcasecmp(define, defines[i]) == 0) {
       printf("***ERROR: Duplicate define: %s\n",define);
+      printf("          %s\n",lineNoErr());
       errors++;
       return;
       }
@@ -1171,6 +1187,7 @@ char* nextLine(char* line) {
               ret += 6;
               ret = trim(ret);
               printf("***ERROR: %s\n",ret);
+              printf("          %s\n",lineNoErr());
               errors++;
               }
 
@@ -1241,7 +1258,7 @@ char* nextLine(char* line) {
             if (numNests > 0)
               nests[numNests] = (nests[numNests] == 'Y') ? 'N' : 'Y';
             else {
-              printf("***Error: Unmatched #else\n");
+              printf("***Error: Unmatched #else\n      %s \n",lineNoErr());
               errors++;
               }
             }
@@ -1251,7 +1268,7 @@ char* nextLine(char* line) {
         if (strncmp(ret,"#endif",6) == 0) {
           if (numNests > 0) numNests--;
           else {
-            printf("***Error: Unmatched #endif\n");
+            printf("***Error: Unmatched #endif\n        %s \n",lineNoErr());
             errors++;
             }
           }
@@ -1448,7 +1465,8 @@ void Asm(char* line) {
     label[pos] = 0;
     if (*line != ':') {
       printf("***ERROR: Invalid label");
-      printf("%s\n",orig);
+      printf("          %s\n",orig);
+      printf("          %s\n",lineNoErr());
       errors++;
       sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
@@ -1507,6 +1525,7 @@ void Asm(char* line) {
         opline = trim(opline);
         if (*opline != 0 && *opline != ',') {
           printf("ERROR: Invalid operand list: %s\n",orig);
+	  printf("          %s\n",lineNoErr());
           exit(1);
           }
         if (*opline == ',') opline++;
@@ -1531,6 +1550,7 @@ void Asm(char* line) {
       }
     if (pos < 0 && macro == -1) {
       printf("***ERROR: Unknown opcode: %s\n",opcode);
+      printf("          %s\n",lineNoErr());
       errors++;
       sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
@@ -1656,9 +1676,13 @@ void Asm(char* line) {
              value = processArgs(args);
              if (passNumber == 2 && (value & 0xff00) != (address & 0xff00)) {
                if (fileNumber == 0)
-                 printf("[%05d]: Short branch out of page\n",lineNumber[fileNumber]);
+		 {
+		   printf("Warning: Short branch out of page\n      %s\n",lineNoErr());
+		 }
                else
-                 printf("<%05d>: Short branch out of page\n",lineNumber[fileNumber]);
+		 {
+		   printf("Warning: Short branch out of page\n        %s\n",lineNoErr());
+		 }
                errors++;
                }
              output(value & 0xff);
@@ -1706,6 +1730,7 @@ void Asm(char* line) {
         case OT_680ARG:
              if (use1805 == 0) {
                printf("***ERROR: 1805 Instruction used while not in 1805 mode\n");
+	       printf("          %s\n",lineNoErr());
                errors++;
                }
              output(0x68);
@@ -1798,6 +1823,7 @@ void Asm(char* line) {
         case OT_ENDP:
              if (inProc == 0) {
                printf("***ERROR: ENDP encountered outside PROC\n");
+	       printf("          %s\n",lineNoErr());
                errors++;
                }
              if (passNumber == 2 && outCount > 0) {
@@ -1852,6 +1878,7 @@ void Asm(char* line) {
              break;
         default:
              printf("***ERROR: Unknown instruction type: %d\n",opcodes[pos].typ);
+	     printf("          %s\n",lineNoErr());
              errors++;
              break;
         }
@@ -2052,6 +2079,7 @@ int pass(int p, char* srcFile) {
   fclose(sourceFile[0]);
   if (inProc) {
     printf("***ERROR: PROC without ENDP\n");
+    printf("          %s\n",lineNoErr());
     errors++;
     }
   if (passNumber == 2 && outCount > 0) writeOutput();    
