@@ -2361,7 +2361,7 @@ int main(int argc, char** argv) {
   int i;
   time_t tv;
   struct tm dt;
-  printf("Asm/02 v1.3\n");
+  printf("Asm/02 v1.4\n");
   printf("by Michael H. Riley\n");
   createLst = 0;
   outMode = 'R';
