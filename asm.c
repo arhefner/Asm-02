@@ -275,7 +275,9 @@ static const char *emessages[] = {
 #define ERR_UNKNOWN_INST_TYPE           21
   "Unknown instruction type: %d",
 #define ERR_PROC_NO_ENDP                22
-  "PROC without ENDP"
+  "PROC without ENDP",
+#define ERR_COULD_NOT_OPEN              23
+  "Could not open '%s'"
   };
 
 static const char *wmessages[] = {
@@ -1257,9 +1259,8 @@ char* nextLine(char* line) {
                 i++;
                 }
               if (sourceFile[fileNumber] == NULL) {
-                printf("***ERROR: Could not open: %s\n",buffer);
                 fileNumber--;
-                errors++;
+                doError(ERR_COULD_NOT_OPEN, buffer);
                 }
               }
             }
