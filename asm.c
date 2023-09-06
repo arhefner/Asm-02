@@ -278,12 +278,19 @@ static const char *emessages[] = {
   "PROC without ENDP"
   };
 
+static const char *wmessages[] = {
+#define WRN_NO_OPERANDS                 0
+  "%s does not take operands",
+#define WRN_ORG_IN_PROC                 1
+  "ORG not allowed inside of PROC"
+};
+
 void doError(int msgno, ...) {
   va_list args;
   char buffer[MAX_ERROR];
   int offset;
 
-  offset = sprintf(buffer, "***ERROR ");
+  offset = sprintf(buffer, "*ERROR: ");
 
   va_start(args, msgno);
   offset += vsnprintf(buffer+offset, sizeof(buffer)-offset, emessages[msgno], args);
@@ -297,6 +304,25 @@ void doError(int msgno, ...) {
     }
 
   errors++;
+  }
+
+void doWarning(int msgno, ...) {
+  va_list args;
+  char buffer[MAX_ERROR];
+  int offset;
+
+  offset = sprintf(buffer, "!WARNING: ");
+
+  va_start(args, msgno);
+  offset += vsnprintf(buffer+offset, sizeof(buffer)-offset, wmessages[msgno], args);
+  va_end(args);
+
+  fprintf(stderr, "%s:%d: %s\n", sourceFiles[fileNumber], lineNumber[fileNumber], buffer);
+  fprintf(stderr, " %4d | %s\n", lineNumber[fileNumber], sourceLine);
+
+  if (passNumber == 2 && (showList||createLst)) {
+    list(buffer);
+    }
   }
 
 char* trim(char* line) {
@@ -1751,7 +1777,7 @@ void Asm(char* line) {
       switch (opcodes[pos].typ) {
         case OT_0ARG:
              if (strlen(args) > 0 && passNumber == 2) {
-               printf("WARNING: %s does not take operands\n",opcodes[pos].opcode);
+               doWarning(WRN_NO_OPERANDS, opcodes[pos].opcode);
                }
              output(opcodes[pos].byte1);
              break;
@@ -1810,7 +1836,7 @@ void Asm(char* line) {
                processOrg(processArgs(args));
                }
              else {
-               printf("!!!WARNING!!! ORG not allowed inside of PROC\n");
+               doWarning(WRN_ORG_IN_PROC);
                }
              break;
         case OT_EQU:
