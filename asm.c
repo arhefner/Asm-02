@@ -227,55 +227,76 @@ char* lineNo() {
   return buffer;
   }
 
+#define MAX_ERROR			1025
 
+static const char *emessages[] = {
+#define ERR_DUPLICATE_LABEL             0
+  "Duplicate label: %s",
+#define ERR_LABEL_NOT_FOUND             1
+  "Label not found: %s",
+#define ERR_ADDR_EXCEEDS_AVAIL          2
+  "Address exceeded available %s",
+#define ERR_INVALID_OP                  3
+  "Invalid OP: %c (%02x)",
+#define ERR_UNBAL_PAREN                 4
+  "Expression error: ) without (",
+#define ERR_INVALID_OP_FORMAT           5
+  "Invalid .op format: %s",
+#define ERR_INVALID_CHAR_IN_OP          6
+  "Invalid character in opcode name: %s",
+#define ERR_DUPLICATE_DEFINE            7
+  "Duplicate define: %s",
+#define ERR_PREPROC_ERROR               8
+  "%s",
+#define ERR_UNMATCHED_ELIF              9
+  "Unmatched #elif",
+#define ERR_UNMATCHED_ELSE              10
+  "Unmatched #else",
+#define ERR_UNMATCHED_ENDIF             11
+  "Unmatched #endif",
+#define ERR_UNRECOGNIZED_DIRECTIVE      12
+  "Unrecognized assembler directive: %s",
+#define ERR_INVALID_LABEL               13
+  "Missing ':' at label: %s",
+#define ERR_PREPROC_FIRST               14
+  "Preprocessor directive must be at start of line",
+#define ERR_INVALID_OPERANDS            15
+  "Invalid operand list: %s",
+#define ERR_UNKNOWN_OPCODE              16
+  "Unknown opcode: %s",
+#define ERR_SHORT_BRANCH                17
+  "Short branch out of page",
+#define ERR_1805_OP                     18
+  "1805 instruction used while not in 1805 mode",
+#define ERR_MISSING_ARG                 19
+  "Missing argument",
+#define ERR_ENDP_OUTSIDE_PROC           20
+  "ENDP encountered outside PROC",
+#define ERR_UNKNOWN_INST_TYPE           21
+  "Unknown instruction type: %d",
+#define ERR_PROC_NO_ENDP                22
+  "PROC without ENDP"
+  };
 
-  static const char *emessages[] =
-      {
-          "Duplicate label:",
-          "Label not found:",
-          "Address exceeded available",
-          "Invalid OP: ",
-          "Expression error: ) without (",
-          "Invalid .op format:",
-          "Invalid character in opcode name:",
-          "Invalid .op format:",
-          "Duplicate define:",
-          "#Error:",
-          "Unmatched #elif",
-          "Unmatched #else",
-          "Unmatched #endif",
-          "Unrecognized assembler directive:",
-          "Missing ':' at label:",
-          "Preprocessor directive must be at start of line",
-          "Invalid operand list:",
-          "Unknown opcode:",
-          "Short branch out of range",
-          "1805 instruction used while not in 1805 mode",
-          "Missing argument",
-          "ENDP encountered outside PROC",
-          "Unknown instruction type:",
-          "PROC without ENDP",
+void doError(int msgno, ...) {
+  va_list args;
+  char buffer[MAX_ERROR];
+  int offset;
 
+  offset = sprintf(buffer, "***ERROR ");
 
+  va_start(args, msgno);
+  offset += vsnprintf(buffer+offset, sizeof(buffer)-offset, emessages[msgno], args);
+  va_end(args);
 
+  fprintf(stderr, "%s:%d: %s\n", sourceFiles[fileNumber], lineNumber[fileNumber], buffer);
+  fprintf(stderr, " %4d | %s\n", lineNumber[fileNumber], sourceLine);
 
-      };
-
-void doError(unsigned msgno, const char *arg)
-  {
-    char logbuffer[1025];
-    printf("***ERROR: %s %s\n", emessages[msgno], arg ? arg : "");
-    if (fileNumber == 0) 
-      printf("        File: %s \n[%05d]",sourceFiles[fileNumber],lineNumber[fileNumber]);
-    else  
-      printf("         File: %s \n<%05d>",sourceFiles[fileNumber],lineNumber[fileNumber]);
-    printf("           %s\n", sourceLine);
-    if (passNumber==2 && (showList||createLst))
-    {
-      sprintf(logbuffer, "***ERROR %s %s\n", emessages[msgno], arg ? arg : "");
-      list(logbuffer);
+  if (passNumber == 2 && (showList||createLst)) {
+    list(buffer);
     }
-    errors++;
+
+  errors++;
   }
 
 char* trim(char* line) {
@@ -343,7 +364,7 @@ void addLabel(char* label, word value) {
   for (i=0; i<numLabels; i++)
     if (strcasecmp(label, labels[i]) == 0 &&
         strcasecmp(module, labelProcs[i]) == 0) {
-      doError(0, label);  // duplicate label
+      doError(ERR_DUPLICATE_LABEL, label);
       return;
       }
   numLabels++;
@@ -387,7 +408,7 @@ word getLabel(char* label) {
         (strcasecmp(" ", labelProcs[i]) == 0 ||
          strcasecmp("*", labelProcs[i]) == 0))
       return labelValues[i];
-  doError(1, label);  // label not found
+  doError(ERR_LABEL_NOT_FOUND, label);
   return 0;
   }
 
@@ -418,7 +439,7 @@ int findLabel(char* label) {
            strcasecmp("*", labelProcs[i]) == 0)) {
       return i;
       }
-  doError(1,label); // label not found
+  doError(ERR_LABEL_NOT_FOUND, label);
   return -1;
   }
 
@@ -429,7 +450,7 @@ void setLabel(char* label, word value) {
       labelValues[i] = value;
       return;
       }
-  doError(1, label);  // label not found
+  doError(ERR_LABEL_NOT_FOUND, label);
   }
 
 int isExternal(int v) {
@@ -481,10 +502,10 @@ void writeOutput() {
 void output(byte value) {
   char tmp[4];
   if (compMode == 'A' && (address < ramStart || address > ramEnd)) {
-    doError(2, "RAM");  // exceeded avail RAM
+    doError(ERR_ADDR_EXCEEDS_AVAIL, "RAM");
     }
   if (compMode == 'O' && (address < romStart || address > romEnd)) {
-    doError(2, "ROM"); // exceeded avail ROM
+    doError(ERR_ADDR_EXCEEDS_AVAIL, "ROM");
     }
   if (passNumber == 1) {
     if (address > highest) highest = address;
@@ -778,10 +799,7 @@ char* evaluate(char *pos, dword* result) {
              break;
         }
       if (op == 0) {
-        char estring[2];
-        estring[0] = *pos;
-        estring[1] = '\0';
-        doError(3, estring);  // invalid OP
+        doError(ERR_INVALID_OP, *pos, *pos);
         exit(1);
         }
       while (ostack > 0 && (ops[ostack-1] & 0xf0) >= (op & 0xf0)) {
@@ -836,10 +854,10 @@ char* evaluate(char *pos, dword* result) {
         }
       if (op != OP_END) {
         if (op == OP_CP) {
-          if (usedLocal >= 0 || usedReference >= 0) 
+          if (usedLocal >= 0 || usedReference >= 0)
             referenceLowOffset = numbers[nstack-1] & 0xff;
           if (ops[ostack-1] != OP_OP) {
-            doError(4, NULL);  // ) without (
+            doError(ERR_UNBAL_PAREN);  // ) without (
             return 0;
             }
           ostack--;
@@ -995,7 +1013,7 @@ void compileOp(char* line) {
   oline = line;
   line = trim(line);
   if (*line != '"') {
-    doError(5, oline);  // invalid .op format
+    doError(ERR_INVALID_OP_FORMAT, oline);
     exit(1);
     }
   line++;
@@ -1009,25 +1027,25 @@ void compileOp(char* line) {
       op[pos++] = *line++;
       }
     else {
-      doError(6, oline);  // invalid char in opcode
+      doError(ERR_INVALID_CHAR_IN_OP, oline);
       exit(1);
       }
     }
   op[pos] = 0;
   if (*line != '"') {
-    doError(7, oline);  // invalid .op format
+    doError(ERR_INVALID_OP_FORMAT, oline);
     exit(1);
     }
   line++;
   line = trim(line);
   if (*line != ',') {
-    doError(7, oline); // invalid op format
+    doError(ERR_INVALID_OP_FORMAT, oline);
     exit(1);
     }
   line++;
   line = trim(line);
   if (*line != '"') {
-    doError(7, oline); // invalid op format
+    doError(ERR_INVALID_OP_FORMAT, oline);
     exit(1);
     }
   line++;
@@ -1040,19 +1058,19 @@ void compileOp(char* line) {
     }
   args[pos] = 0;
   if (*line != '"') {
-    doError(7, oline); // invalid op format
+    doError(ERR_INVALID_OP_FORMAT, oline);
     exit(1);
     }
   line++;
   line = trim(line);
   if (*line != ',') {
-    doError(7, oline); // invalid op format
+    doError(ERR_INVALID_OP_FORMAT, oline);
     exit(1);
     }
   line++;
   line = trim(line);
   if (*line != '"') {
-     doError(7, oline); // invalid op format   
+     doError(ERR_INVALID_OP_FORMAT, oline);
     exit(1);
     }
   line++;
@@ -1062,7 +1080,7 @@ void compileOp(char* line) {
     }
   trans[pos] = 0;
   if (*line != '"') {
-    doError(7, oline); // invalid op format   
+    doError(ERR_INVALID_OP_FORMAT, oline);
     exit(1);
     }
   numOps++;
@@ -1093,7 +1111,7 @@ void addDefine(char* define, char* value) {
   int i;
   for (i=0; i<numDefines; i++)
     if (strcasecmp(define, defines[i]) == 0) {
-      doError(8, define);  // duplicate define
+      doError(ERR_DUPLICATE_DEFINE, define);
       return;
       }
   numDefines++;
@@ -1200,7 +1218,7 @@ char* nextLine(char* line) {
             buffer[pos] = 0;
             fileNumber++;
             lineNumber[fileNumber] = 0;
-	    sourceFiles[fileNumber]=strdup(buffer);
+            sourceFiles[fileNumber] = strdup(buffer);
             sourceFile[fileNumber] = fopen(buffer,"r");
             if (sourceFile[fileNumber] == NULL) {
               i = 0;
@@ -1235,7 +1253,7 @@ char* nextLine(char* line) {
           if (strncasecmp(ret,"#error",6) == 0) {
             ret += 6;
             ret = trim(ret);
-            doError(9, ret);  // #error
+            doError(ERR_PREPROC_ERROR, ret);  // #error
             }
 
           if (strncasecmp(ret,"#undef",6) == 0) {
@@ -1315,7 +1333,7 @@ char* nextLine(char* line) {
               }
             }
           else {
-            doError(10, NULL);  // unmatched #elif
+            doError(ERR_UNMATCHED_ELIF);
             }
           }
 
@@ -1325,14 +1343,14 @@ char* nextLine(char* line) {
               nests[numNests] = (nests[numNests] == 'Y') ? 'N' : 'Y';
             }
           else {
-            doError(11, NULL); // unmatched #else
+            doError(ERR_UNMATCHED_ELSE);
             }
           }
 
         if (strncmp(ret,"#endif",6) == 0) {
           if (numNests > 0) numNests--;
           else {
-            doError(12, NULL); // unmatched endif
+            doError(ERR_UNMATCHED_ENDIF);
             }
           }
 
@@ -1513,7 +1531,7 @@ void Asm(char* line) {
                label[pos++] = *line++;
         }
         label[pos] = 0;
-        doError(13, label);
+        doError(ERR_UNRECOGNIZED_DIRECTIVE, label);
         sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       }
     return;
@@ -1534,7 +1552,7 @@ void Asm(char* line) {
       }
     label[pos] = 0;
     if (*line != ':') {
-      doError(14, label);  // missing : on label
+      doError(ERR_INVALID_LABEL, label);
       sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
@@ -1543,7 +1561,7 @@ void Asm(char* line) {
 
   line = trim(line);
   if (*line == '#') {
-    doError(15, NULL);  // # must be at start
+    doError(ERR_PREPROC_FIRST);
     sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
     return;
     }
@@ -1597,7 +1615,7 @@ void Asm(char* line) {
           }
         opline = trim(opline);
         if (*opline != 0 && *opline != ',') {
-          doError(16, orig);  // invalid operand list
+          doError(ERR_INVALID_OPERANDS, orig);  // invalid operand list
           exit(1);
           }
         if (*opline == ',') opline++;
@@ -1616,12 +1634,12 @@ void Asm(char* line) {
             }
           if (flag) {
             macro = i;
-            i = numOps+1; 
+            i = numOps+1;
             }
           }
       }
     if (pos < 0 && macro == -1) {
-      doError(17, opcode);  // unknown opcode
+      doError(ERR_UNKNOWN_OPCODE, opcode);  // unknown opcode
       sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
@@ -1718,10 +1736,10 @@ void Asm(char* line) {
           if (passNumber == 2 && operandsEType[c] != ' ') {
             sprintf(buffer,"\\%s %04x\n",labels[operandsERef[c]],address);
             write(outFile, buffer, strlen(buffer));
-             }
+            }
           if (passNumber == 2 && (operands[c] & 0xff00) != (address & 0xff00)) {
-            doError(18, NULL); // short branch out of range
-             }
+            doError(ERR_SHORT_BRANCH);
+            }
           if (c >= 0 && c<= 9) b = (operands[c] & 0xff);
           valid = 0xff;
           }
@@ -1765,7 +1783,7 @@ void Asm(char* line) {
              output(opcodes[pos].byte1);
              value = processArgs(args);
              if (passNumber == 2 && (value & 0xff00) != (address & 0xff00)) {
-               doError(18, NULL); // short branch out of range
+               doError(ERR_SHORT_BRANCH);
                }
              if (passNumber == 2 && usedLocal >= 0) {
                fixups[numFixups] = address;
@@ -1816,14 +1834,14 @@ void Asm(char* line) {
              break;
         case OT_680ARG:
              if (use1805 == 0) {
-               doError(19, NULL);  /// 1805 code used
+               doError(ERR_1805_OP);
                }
              output(0x68);
              output(opcodes[pos].byte1);
              break;
         case OT_681ARG:
              if (use1805 == 0) {
-               doError(19, NULL);  /// 1805 code used
+               doError(ERR_1805_OP);
                }
              output(0x68);
              output(opcodes[pos].byte1);
@@ -1831,7 +1849,7 @@ void Asm(char* line) {
              break;
         case OT_682ARG:
              if (use1805 == 0) {
-               doError(19, NULL);  /// 1805 code used
+               doError(ERR_1805_OP);
                }
              output(0x68);
              pargs = evaluate(args, &value);
@@ -1845,13 +1863,12 @@ void Asm(char* line) {
                output(value & 0xff);
                }
              else {
-               doError(20, NULL); // missing arg 
-               printf("Missing argument\n");
+               doError(ERR_MISSING_ARG);
                }
              break;
         case OT_68NARG:
              if (use1805 == 0) {
-               doError(19, NULL); // 1805 used
+               doError(ERR_1805_OP);
              }
              output(0x68);
              output(opcodes[pos].byte1 | (processArgs(args) & 0xf));
@@ -1888,7 +1905,7 @@ void Asm(char* line) {
              inProc = -1;
              strcpy(module,args);
              if (passNumber == 2 && outCount > 0) {
-               writeOutput();    
+               writeOutput();
                outCount = 0;
                }
              address = 0;
@@ -1904,10 +1921,10 @@ void Asm(char* line) {
              break;
         case OT_ENDP:
              if (inProc == 0) {
-               doError(21, NULL);  // ENDP outside PROC
+               doError(ERR_ENDP_OUTSIDE_PROC);
                }
              if (passNumber == 2 && outCount > 0) {
-               writeOutput();    
+               writeOutput();
                outCount = 0;
                outAddress = address;
                }
@@ -1959,12 +1976,8 @@ void Asm(char* line) {
              output(buildNumber & 0xff);
              break;
         default:
-          {
-            char errstring[16];  // unknown instruction type 
-            sprintf(errstring, "%d", opcodes[pos].typ);
-            doError(22, errstring);
-          }
-          break;
+             doError(ERR_UNKNOWN_INST_TYPE, opcodes[pos].typ);
+             break;
         }
       }
     if (passNumber == 2) {
@@ -2067,7 +2080,7 @@ void processOption(char* option) {
     if (strncmp(option,"-I",2) == 0) {
       option += 2;
       numIncPath++;
-      if (numIncPath == 1) 
+      if (numIncPath == 1)
         incPath = (char**)malloc(sizeof(char*));
       else
         incPath = (char**)realloc(incPath,sizeof(char*)*numIncPath);
@@ -2164,9 +2177,9 @@ int pass(int p, char* srcFile) {
     }
   fclose(sourceFile[0]);
   if (inProc) {
-    doError(23, NULL);  // proc with no endp
+    doError(ERR_PROC_NO_ENDP);
     }
-  if (passNumber == 2 && outCount > 0) writeOutput();    
+  if (passNumber == 2 && outCount > 0) writeOutput();
   if (passNumber == 2 && outMode != 'B') {
     //write EOF before closing intel hex file
     if (outMode == 'I') {
@@ -2178,7 +2191,7 @@ int pass(int p, char* srcFile) {
         write(outFile, buffer, strlen(buffer));
         }
       }
-    close(outFile); 
+    close(outFile);
   }
   if (passNumber == 2 && createLst) fclose(lstFile);
   if (numNests > 0) printf("#ifdef without #endif\n");
@@ -2268,13 +2281,6 @@ void assembleFile(char* sourceFile, int argc, char** argv) {
   buildFile = fopen(tmp,"w");
   fprintf(buildFile,"%d\n",buildNumber);
   fclose(buildFile);
-  
-
-//  for (i=0; i<argc; i++) {
-//    if (strncmp(argv[i],"-D",2) == 0) {
-//      addDefine(argv[i]+2,"1");
-//      }
-//    }
 
   for (i=0; i<numClDefines; i++)
     addDefine(clDefines[i], clDefineValues[i]);
@@ -2282,11 +2288,6 @@ void assembleFile(char* sourceFile, int argc, char** argv) {
   i = pass(1, sourceFile);
   numDefines = 0;
   if (i == 0 && errors == 0) {
-//    for (i=0; i<argc; i++) {
-//      if (strncmp(argv[i],"-D",2) == 0) {
-//        addDefine(argv[i]+2,"1");
-//        }
-//      }
     for (i=0; i<numClDefines; i++)
       addDefine(clDefines[i], clDefineValues[i]);
     i = pass(2, sourceFile);
