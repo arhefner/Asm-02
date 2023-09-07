@@ -251,49 +251,55 @@ static const char *emessages[] = {
 #define ERR_ADDR_EXCEEDS_AVAIL        (ERROR | 2)
     "%s overflow at address %04x",
 #define ERR_INVALID_OP                (ERROR | 3)
-    "Invalid OP: %c (%02x)",
-#define ERR_UNBAL_PAREN               (ERROR | 4)
-    "Expression error: ) without (",
-#define ERR_INVALID_OP_FORMAT         (ERROR | 5)
+    "Invalid operator: %c (%02x)",
+#define ERR_INVALID_OP_FORMAT         (ERROR | 4)
     "Invalid .op format: %s",
-#define ERR_INVALID_CHAR_IN_OP        (ERROR | 6)
+#define ERR_INVALID_CHAR_IN_OP        (ERROR | 5)
     "Invalid character in opcode name: %s",
-#define ERR_DUPLICATE_DEFINE          (ERROR | 7)
+#define ERR_DUPLICATE_DEFINE          (ERROR | 6)
     "Duplicate define: %s",
-#define ERR_PREPROC_ERROR             (ERROR | 8)
+#define ERR_PREPROC_ERROR             (ERROR | 7)
     "%s",
-#define ERR_UNMATCHED_ELIF            (ERROR | 9)
+#define ERR_UNMATCHED_ELIF            (ERROR | 8)
     "Unmatched #elif",
-#define ERR_UNMATCHED_ELSE            (ERROR | 10)
+#define ERR_UNMATCHED_ELSE            (ERROR | 9)
     "Unmatched #else",
-#define ERR_UNMATCHED_ENDIF           (ERROR | 11)
+#define ERR_UNMATCHED_ENDIF           (ERROR | 10)
     "Unmatched #endif",
-#define ERR_UNRECOGNIZED_DIRECTIVE    (ERROR | 12)
+#define ERR_UNRECOGNIZED_DIRECTIVE    (ERROR | 11)
     "Unrecognized assembler directive: %s",
-#define ERR_INVALID_LABEL             (ERROR | 13)
+#define ERR_INVALID_LABEL             (ERROR | 12)
     "Missing ':' at label: %s",
-#define ERR_PREPROC_FIRST             (ERROR | 14)
+#define ERR_PREPROC_FIRST             (ERROR | 13)
     "Preprocessor directive must be at start of line",
-#define ERR_INVALID_OPERANDS          (ERROR | 15)
+#define ERR_INVALID_OPERANDS          (ERROR | 14)
     "Invalid operand list: %s",
-#define ERR_UNKNOWN_OPCODE            (ERROR | 16)
+#define ERR_UNKNOWN_OPCODE            (ERROR | 15)
     "Unknown opcode: %s",
-#define ERR_SHORT_BRANCH              (ERROR | 17)
+#define ERR_SHORT_BRANCH              (ERROR | 16)
     "Short branch out of page",
-#define ERR_1805_OP                   (ERROR | 18)
+#define ERR_1805_OP                   (ERROR | 17)
     "1805 instruction used while not in 1805 mode",
-#define ERR_MISSING_ARG               (ERROR | 19)
+#define ERR_MISSING_ARG               (ERROR | 18)
     "Missing argument",
-#define ERR_ENDP_OUTSIDE_PROC         (ERROR | 20)
+#define ERR_ENDP_OUTSIDE_PROC         (ERROR | 19)
     "ENDP encountered outside PROC",
-#define ERR_UNKNOWN_INST_TYPE         (ERROR | 21)
+#define ERR_UNKNOWN_INST_TYPE         (ERROR | 20)
     "Unknown instruction type: %d",
-#define ERR_PROC_NO_ENDP              (ERROR | 22)
+#define ERR_PROC_NO_ENDP              (ERROR | 21)
     "PROC without ENDP",
-#define ERR_COULD_NOT_OPEN            (ERROR | 23)
+#define ERR_COULD_NOT_OPEN            (ERROR | 22)
     "Could not open '%s'",
-#define ERR_ADDR_OUTSIDE_MEM          (ERROR | 24)
-    "Address %04x is neither RAM nor ROM"
+#define ERR_ADDR_OUTSIDE_MEM          (ERROR | 23)
+    "Address %04x is neither RAM nor ROM",
+#define ERR_MISSING_ENDIF             (ERROR | 24)
+    "Missing #endif",
+#define ERR_MISMATCHED_PARENS         (ERROR | 25)
+    "Mismatched parentheses in expression",
+#define ERR_INVALID_NUMBER            (ERROR | 26)
+    "Non-number found in expression",
+#define ERR_MEMORY_OVERLAP            (ERROR | 27)
+    "Memory overwrite at address %04x"
 };
 
 static const char *wmessages[] = {
@@ -664,12 +670,20 @@ void output(byte value)
         lowAddress = address;
       if (address > highAddress)
         highAddress = address;
+      if (checkOverwrite && !mmapCheck(address))
+      {
+        doError(ERR_MEMORY_OVERLAP, address);
+      }
       memory[address] = value;
     }
     else
     {
       if (suppression == 0)
       {
+        if (checkOverwrite && !mmapCheck(address))
+        {
+          doError(ERR_MEMORY_OVERLAP, address);
+        }
         outBuffer[outCount++] = value;
         if (outCount == 16)
         {
@@ -936,8 +950,7 @@ char *evaluate(char *pos, dword *result)
         }
         if (term == 0)
         {
-          printf("Non-number found\n");
-          printf("  %s\n", sourceLine);
+          doError(ERR_INVALID_NUMBER);
           return 0;
         }
       }
@@ -1159,7 +1172,7 @@ char *evaluate(char *pos, dword *result)
             referenceLowOffset = numbers[nstack - 1] & 0xff;
           if (ops[ostack - 1] != OP_OP)
           {
-            doError(ERR_UNBAL_PAREN); // ) without (
+            doError(ERR_MISMATCHED_PARENS);
             return 0;
           }
           ostack--;
@@ -1176,12 +1189,12 @@ char *evaluate(char *pos, dword *result)
   }
   if (nstack == 0)
   {
-    printf("nstack empty\n");
+    doError(ERR_MISMATCHED_PARENS);
     return pos;
   }
   if (nstack != 1)
   {
-    printf("Did not reduce to 1 term: %d\n", nstack);
+    doError(ERR_MISMATCHED_PARENS);
     return pos;
   }
   *result = numbers[0];
@@ -2106,7 +2119,7 @@ void Asm(char *line)
         opline = trim(opline);
         if (*opline != 0 && *opline != ',')
         {
-          doError(ERR_INVALID_OPERANDS, orig); // invalid operand list
+          doError(ERR_INVALID_OPERANDS, orig);
           exit(1);
         }
         if (*opline == ',')
@@ -2597,7 +2610,7 @@ void processRAM(char *buffer)
     buffer++;
   if (*buffer != '-')
   {
-    printf("Invalid format for -ram\n");
+    fprintf(stderr, "%s\n", "Invalid format for -ram");
     exit(1);
   }
   buffer++;
@@ -2611,7 +2624,7 @@ void processROM(char *buffer)
     buffer++;
   if (*buffer != '-')
   {
-    printf("Invalid format for -rom\n");
+    fprintf(stderr, "%s\n", "Invalid format for -rom");
     exit(1);
   }
   buffer++;
@@ -2753,6 +2766,10 @@ void processOption(char *option)
     romStart = 0xf000;
     romEnd = 0xffff;
   }
+  else if (strcmp(option, "-map") == 0)
+  {
+    showMap = true;
+  }
   else if (strncmp(option, "-ram=", 5) == 0)
     processRAM(option + 5);
   else if (strncmp(option, "-rom=", 5) == 0)
@@ -2778,7 +2795,7 @@ int pass(int p, char *srcFile)
   sourceFile[0] = fopen(srcFile, "r");
   if (sourceFile[0] == NULL)
   {
-    printf("Could not open source file: %s\n", srcFile);
+    fprintf(stderr, "Could not open source file: %s\n", srcFile);
     exit(1);
   }
   lineNumber[0] = 0;
@@ -2789,7 +2806,7 @@ int pass(int p, char *srcFile)
       outFile = open(outName, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, 0666);
       if (outFile < 0)
       {
-        printf("Could not open output file: %s\n", outName);
+        fprintf(stderr, "Could not open output file: %s\n", outName);
         exit(1);
       }
       if (outMode == 'R')
@@ -2836,7 +2853,7 @@ int pass(int p, char *srcFile)
   if (passNumber == 2 && createLst)
     fclose(lstFile);
   if (numNests > 0)
-    printf("#ifdef without #endif\n");
+    doError(ERR_MISSING_ENDIF);
 
   for (i = 0; i < numDefines; i++)
     free(defines[i]);
@@ -2954,7 +2971,7 @@ void assembleFile(char *sourceFile, int argc, char **argv)
       outFile = open(outName, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, 0666);
       if (outFile < 0)
       {
-        printf("Could not open output file: %s\n", outName);
+        fprintf(stderr, "Could not open output file: %s\n", outName);
         exit(1);
       }
       write(outFile, memory + lowAddress, (highAddress - lowAddress) + 1);
@@ -2962,7 +2979,7 @@ void assembleFile(char *sourceFile, int argc, char **argv)
     }
   }
   else
-    printf("Errors during pass 1, aborting pass 2\n");
+    fprintf(stderr, "%s\n", "Errors during pass 1, aborting pass 2");
 
   printf("\n");
   printf("Lines Assembled   : %d\n", linesAssembled);
@@ -2980,6 +2997,11 @@ void assembleFile(char *sourceFile, int argc, char **argv)
         printf(" *");
       printf("\n");
     }
+  }
+
+  if (checkOverwrite && showMap)
+  {
+    mmapPrint();
   }
 
   if (numLabels > 0)
@@ -3003,7 +3025,7 @@ int main(int argc, char **argv)
   int i;
   time_t tv;
   struct tm dt;
-  printf("Asm/02 v1.5\n");
+  printf("Asm/02 v1.6\n");
   printf("by Michael H. Riley\n");
   createLst = 0;
   outMode = 'R';
@@ -3012,6 +3034,7 @@ int main(int argc, char **argv)
   romStart = 0xffff;
   romEnd = 0xffff;
   compMode = 'A';
+  showMap = false;
   memovf = false;
   showList = 0;
   showSymbols = 0;
@@ -3049,12 +3072,35 @@ int main(int argc, char **argv)
   }
   if (numSourceFiles == 0)
   {
-    printf("No source files specified\n");
+    fprintf(stderr, "%s\n", "No source files specified");
     exit(1);
   }
+
+  if (!mmapInit())
+  {
+    fprintf(stderr, "%s\n", "Insufficient memory for overwrite checking.");
+    checkOverwrite = false;
+  }
+  else
+    checkOverwrite = true;
+
+  if (outMode == 'B')
+  {
+    memory = (byte *)malloc(65536);
+    if (memory == NULL)
+    {
+      fprintf(stderr, "%s\n", "Insufficient memory to assemble in binary mode.");
+      exit(1);
+    }
+  }
+  else
+    memory = NULL;
+
   for (i = 0; i < numSourceFiles; i++)
     assembleFile(sourceFiles[i], argc, argv);
+
   if (errors > 0)
     return 1;
+
   return 0;
 }

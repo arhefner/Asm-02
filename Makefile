@@ -6,7 +6,7 @@ INCDIR =
 LIBS =
 LIBDIR =
 OBJS = \
-	asm.o
+	asm.o mmap.o
 
 $(PROJECT): $(OBJS)
 	$(CC) $(DEFS) $(LIBDIR) $(OBJS) $(LIBS) -o $(PROJECT)
@@ -23,3 +23,4 @@ install:
 	chmod a+rx /usr/local/bin/asm02
 
 asm.o:           header.h asm.c
+mmap.o:          mmap.h mmap.c

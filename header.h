@@ -7,6 +7,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <stdbool.h>
+#include "mmap.h"
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <io.h>
@@ -189,7 +190,7 @@ LINK char listLine[256];
 LINK word lowAddress;
 LINK FILE *lstFile;
 LINK char lstName[64];
-LINK byte memory[65536];
+LINK byte *memory;
 LINK word outAddress;
 LINK byte outBuffer[16];
 LINK byte outCount;
@@ -211,7 +212,8 @@ LINK char use1805;
 LINK byte useAsm;
 LINK byte useExtended;
 LINK bool memovf;
-
+LINK bool showMap;
+LINK bool checkOverwrite;
 LINK FILE *sourceFile[100];
 LINK int  lineNumber[100];
 LINK int  fileNumber;
