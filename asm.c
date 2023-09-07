@@ -2999,7 +2999,7 @@ void assembleFile(char *sourceFile, int argc, char **argv)
     }
   }
 
-  if (checkOverwrite && showMap)
+  if (outMode != 'R' && checkOverwrite && showMap)
   {
     mmapPrint();
   }
