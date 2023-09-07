@@ -227,63 +227,69 @@ char* lineNo() {
   return buffer;
   }
 
-#define MAX_ERROR			1025
+#define MAX_ERROR			            1025
+
+#define ERROR                     0x80000000
+#define WARNING                   0x40000000
+
+#define SEVERITY(msgno)           (msgno & 0xc0000000)
+#define MSG_INDEX(msgno)          (msgno & 0x3fffffff)
 
 static const char *emessages[] = {
-#define ERR_DUPLICATE_LABEL             0
+#define ERR_DUPLICATE_LABEL             ERROR|0
   "Duplicate label: %s",
-#define ERR_LABEL_NOT_FOUND             1
+#define ERR_LABEL_NOT_FOUND             ERROR|1
   "Label not found: %s",
-#define ERR_ADDR_EXCEEDS_AVAIL          2
+#define ERR_ADDR_EXCEEDS_AVAIL          ERROR|2
   "Address exceeded available %s",
-#define ERR_INVALID_OP                  3
+#define ERR_INVALID_OP                  ERROR|3
   "Invalid OP: %c (%02x)",
-#define ERR_UNBAL_PAREN                 4
+#define ERR_UNBAL_PAREN                 ERROR|4
   "Expression error: ) without (",
-#define ERR_INVALID_OP_FORMAT           5
+#define ERR_INVALID_OP_FORMAT           ERROR|5
   "Invalid .op format: %s",
-#define ERR_INVALID_CHAR_IN_OP          6
+#define ERR_INVALID_CHAR_IN_OP          ERROR|6
   "Invalid character in opcode name: %s",
-#define ERR_DUPLICATE_DEFINE            7
+#define ERR_DUPLICATE_DEFINE            ERROR|7
   "Duplicate define: %s",
-#define ERR_PREPROC_ERROR               8
+#define ERR_PREPROC_ERROR               ERROR|8
   "%s",
-#define ERR_UNMATCHED_ELIF              9
+#define ERR_UNMATCHED_ELIF              ERROR|9
   "Unmatched #elif",
-#define ERR_UNMATCHED_ELSE              10
+#define ERR_UNMATCHED_ELSE              ERROR|10
   "Unmatched #else",
-#define ERR_UNMATCHED_ENDIF             11
+#define ERR_UNMATCHED_ENDIF             ERROR|11
   "Unmatched #endif",
-#define ERR_UNRECOGNIZED_DIRECTIVE      12
+#define ERR_UNRECOGNIZED_DIRECTIVE      ERROR|12
   "Unrecognized assembler directive: %s",
-#define ERR_INVALID_LABEL               13
+#define ERR_INVALID_LABEL               ERROR|13
   "Missing ':' at label: %s",
-#define ERR_PREPROC_FIRST               14
+#define ERR_PREPROC_FIRST               ERROR|14
   "Preprocessor directive must be at start of line",
-#define ERR_INVALID_OPERANDS            15
+#define ERR_INVALID_OPERANDS            ERROR|15
   "Invalid operand list: %s",
-#define ERR_UNKNOWN_OPCODE              16
+#define ERR_UNKNOWN_OPCODE              ERROR|16
   "Unknown opcode: %s",
-#define ERR_SHORT_BRANCH                17
+#define ERR_SHORT_BRANCH                ERROR|17
   "Short branch out of page",
-#define ERR_1805_OP                     18
+#define ERR_1805_OP                     ERROR|18
   "1805 instruction used while not in 1805 mode",
-#define ERR_MISSING_ARG                 19
+#define ERR_MISSING_ARG                 ERROR|19
   "Missing argument",
-#define ERR_ENDP_OUTSIDE_PROC           20
+#define ERR_ENDP_OUTSIDE_PROC           ERROR|20
   "ENDP encountered outside PROC",
-#define ERR_UNKNOWN_INST_TYPE           21
+#define ERR_UNKNOWN_INST_TYPE           ERROR|21
   "Unknown instruction type: %d",
-#define ERR_PROC_NO_ENDP                22
+#define ERR_PROC_NO_ENDP                ERROR|22
   "PROC without ENDP",
-#define ERR_COULD_NOT_OPEN              23
+#define ERR_COULD_NOT_OPEN              ERROR|23
   "Could not open '%s'"
   };
 
 static const char *wmessages[] = {
-#define WRN_NO_OPERANDS                 0
+#define WRN_NO_OPERANDS                 WARNING|0
   "%s does not take operands",
-#define WRN_ORG_IN_PROC                 1
+#define WRN_ORG_IN_PROC                 WARNING|1
   "ORG not allowed inside of PROC"
 };
 
@@ -291,32 +297,27 @@ void doError(int msgno, ...) {
   va_list args;
   char buffer[MAX_ERROR];
   int offset;
+  const char *severity;
+  const char *msg;
 
-  offset = sprintf(buffer, "*ERROR: ");
-
-  va_start(args, msgno);
-  offset += vsnprintf(buffer+offset, sizeof(buffer)-offset, emessages[msgno], args);
-  va_end(args);
-
-  fprintf(stderr, "%s:%d: %s\n", sourceFiles[fileNumber], lineNumber[fileNumber], buffer);
-  fprintf(stderr, " %4d | %s\n", lineNumber[fileNumber], sourceLine);
-
-  if (passNumber == 2 && (showList||createLst)) {
-    list(buffer);
+  switch (SEVERITY(msgno)) {
+    case ERROR:
+      severity = "*ERROR";
+      msg = emessages[MSG_INDEX(msgno)];
+      errors++;
+      break;
+    case WARNING:
+      severity = "!WARNING";
+      msg = wmessages[MSG_INDEX(msgno)];
+      break;
+    default:
+      return;
     }
 
-  errors++;
-  }
-
-void doWarning(int msgno, ...) {
-  va_list args;
-  char buffer[MAX_ERROR];
-  int offset;
-
-  offset = sprintf(buffer, "!WARNING: ");
+  offset = sprintf(buffer, "%s: ", severity);
 
   va_start(args, msgno);
-  offset += vsnprintf(buffer+offset, sizeof(buffer)-offset, wmessages[msgno], args);
+  offset += vsnprintf(buffer+offset, sizeof(buffer)-offset, msg, args);
   va_end(args);
 
   fprintf(stderr, "%s:%d: %s\n", sourceFiles[fileNumber], lineNumber[fileNumber], buffer);
@@ -436,7 +437,6 @@ word getLabel(char* label) {
         (strcasecmp(" ", labelProcs[i]) == 0 ||
          strcasecmp("*", labelProcs[i]) == 0))
       return labelValues[i];
-  doError(ERR_LABEL_NOT_FOUND, label);
   return 0;
   }
 
@@ -467,18 +467,20 @@ int findLabel(char* label) {
            strcasecmp("*", labelProcs[i]) == 0)) {
       return i;
       }
-  doError(ERR_LABEL_NOT_FOUND, label);
+  if (passNumber == 2) {
+    doError(ERR_LABEL_NOT_FOUND, label);
+    }
   return -1;
   }
 
 void setLabel(char* label, word value) {
   int i;
-  for (i=0; i<numLabels; i++)
+  for (i=0; i<numLabels; i++) {
     if (strcasecmp(label, labels[i]) == 0) {
       labelValues[i] = value;
       return;
       }
-  doError(ERR_LABEL_NOT_FOUND, label);
+    }
   }
 
 int isExternal(int v) {
@@ -1778,7 +1780,7 @@ void Asm(char* line) {
       switch (opcodes[pos].typ) {
         case OT_0ARG:
              if (strlen(args) > 0 && passNumber == 2) {
-               doWarning(WRN_NO_OPERANDS, opcodes[pos].opcode);
+               doError(WRN_NO_OPERANDS, opcodes[pos].opcode);
                }
              output(opcodes[pos].byte1);
              break;
@@ -1834,10 +1836,10 @@ void Asm(char* line) {
         case OT_ORG:
              if (inProc == 0) {
                value = processArgs(args);
-               processOrg(processArgs(args));
+               processOrg(value);
                }
-             else {
-               doWarning(WRN_ORG_IN_PROC);
+             else if (passNumber == 2) {
+               doError(WRN_ORG_IN_PROC);
                }
              break;
         case OT_EQU:
