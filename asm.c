@@ -228,6 +228,7 @@ char* lineNo() {
   }
 
 #define MAX_ERROR			1025
+#define MAX_ERRMSGS   2000             // Warnings start at this number
 
 static const char *emessages[] = {
 #define ERR_DUPLICATE_LABEL             0
@@ -279,9 +280,9 @@ static const char *emessages[] = {
   };
 
 static const char *wmessages[] = {
-#define WRN_NO_OPERANDS                 0
+#define WRN_NO_OPERANDS                 MAX_ERRMSGS
   "%s does not take operands",
-#define WRN_ORG_IN_PROC                 1
+#define WRN_ORG_IN_PROC                 WRN_NO_OPERANDS+1
   "ORG not allowed inside of PROC"
 };
 
@@ -289,11 +290,20 @@ void doError(int msgno, ...) {
   va_list args;
   char buffer[MAX_ERROR];
   int offset;
+  const char *msg;
 
-  offset = sprintf(buffer, "*ERROR: ");
-
+  if (msgno>=MAX_ERRMSGS)
+  {
+    offset = sprintf(buffer, "!WARNING: ");
+    msg = wmessages[msgno-MAX_ERRMSGS];
+  }
+  else
+  {
+    offset = sprintf(buffer, "*ERROR: ");
+    msg = emessages[msgno];
+  }
   va_start(args, msgno);
-  offset += vsnprintf(buffer+offset, sizeof(buffer)-offset, emessages[msgno], args);
+  offset += vsnprintf(buffer+offset, sizeof(buffer)-offset,msg, args);
   va_end(args);
 
   fprintf(stderr, "%s:%d: %s\n", sourceFiles[fileNumber], lineNumber[fileNumber], buffer);
@@ -303,27 +313,9 @@ void doError(int msgno, ...) {
     list(buffer);
     }
 
-  errors++;
+  if (msgno<MAX_ERRMSGS) errors++;
   }
 
-void doWarning(int msgno, ...) {
-  va_list args;
-  char buffer[MAX_ERROR];
-  int offset;
-
-  offset = sprintf(buffer, "!WARNING: ");
-
-  va_start(args, msgno);
-  offset += vsnprintf(buffer+offset, sizeof(buffer)-offset, wmessages[msgno], args);
-  va_end(args);
-
-  fprintf(stderr, "%s:%d: %s\n", sourceFiles[fileNumber], lineNumber[fileNumber], buffer);
-  fprintf(stderr, " %4d | %s\n", lineNumber[fileNumber], sourceLine);
-
-  if (passNumber == 2 && (showList||createLst)) {
-    list(buffer);
-    }
-  }
 
 char* trim(char* line) {
   while (*line == ' ' || *line == '\t') line++;
@@ -1777,7 +1769,7 @@ void Asm(char* line) {
       switch (opcodes[pos].typ) {
         case OT_0ARG:
              if (strlen(args) > 0 && passNumber == 2) {
-               doWarning(WRN_NO_OPERANDS, opcodes[pos].opcode);
+               doError(WRN_NO_OPERANDS, opcodes[pos].opcode);
                }
              output(opcodes[pos].byte1);
              break;
@@ -1836,7 +1828,7 @@ void Asm(char* line) {
                processOrg(processArgs(args));
                }
              else {
-               doWarning(WRN_ORG_IN_PROC);
+               if (passNumber==2) doError(WRN_ORG_IN_PROC);
                }
              break;
         case OT_EQU:
