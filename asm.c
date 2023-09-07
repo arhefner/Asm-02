@@ -244,60 +244,64 @@ char *lineNo()
 #define MSG_INDEX(msgno) (msgno & 0x3fffffff)
 
 static const char *emessages[] = {
-#define ERR_DUPLICATE_LABEL ERROR | 0
+#define ERR_DUPLICATE_LABEL           (ERROR | 0)
     "Duplicate label: %s",
-#define ERR_LABEL_NOT_FOUND ERROR | 1
+#define ERR_LABEL_NOT_FOUND           (ERROR | 1)
     "Label not found: %s",
-#define ERR_ADDR_EXCEEDS_AVAIL ERROR | 2
-    "Address exceeded available %s",
-#define ERR_INVALID_OP ERROR | 3
+#define ERR_ADDR_EXCEEDS_AVAIL        (ERROR | 2)
+    "%s overflow at address %04x",
+#define ERR_INVALID_OP                (ERROR | 3)
     "Invalid OP: %c (%02x)",
-#define ERR_UNBAL_PAREN ERROR | 4
+#define ERR_UNBAL_PAREN               (ERROR | 4)
     "Expression error: ) without (",
-#define ERR_INVALID_OP_FORMAT ERROR | 5
+#define ERR_INVALID_OP_FORMAT         (ERROR | 5)
     "Invalid .op format: %s",
-#define ERR_INVALID_CHAR_IN_OP ERROR | 6
+#define ERR_INVALID_CHAR_IN_OP        (ERROR | 6)
     "Invalid character in opcode name: %s",
-#define ERR_DUPLICATE_DEFINE ERROR | 7
+#define ERR_DUPLICATE_DEFINE          (ERROR | 7)
     "Duplicate define: %s",
-#define ERR_PREPROC_ERROR ERROR | 8
+#define ERR_PREPROC_ERROR             (ERROR | 8)
     "%s",
-#define ERR_UNMATCHED_ELIF ERROR | 9
+#define ERR_UNMATCHED_ELIF            (ERROR | 9)
     "Unmatched #elif",
-#define ERR_UNMATCHED_ELSE ERROR | 10
+#define ERR_UNMATCHED_ELSE            (ERROR | 10)
     "Unmatched #else",
-#define ERR_UNMATCHED_ENDIF ERROR | 11
+#define ERR_UNMATCHED_ENDIF           (ERROR | 11)
     "Unmatched #endif",
-#define ERR_UNRECOGNIZED_DIRECTIVE ERROR | 12
+#define ERR_UNRECOGNIZED_DIRECTIVE    (ERROR | 12)
     "Unrecognized assembler directive: %s",
-#define ERR_INVALID_LABEL ERROR | 13
+#define ERR_INVALID_LABEL             (ERROR | 13)
     "Missing ':' at label: %s",
-#define ERR_PREPROC_FIRST ERROR | 14
+#define ERR_PREPROC_FIRST             (ERROR | 14)
     "Preprocessor directive must be at start of line",
-#define ERR_INVALID_OPERANDS ERROR | 15
+#define ERR_INVALID_OPERANDS          (ERROR | 15)
     "Invalid operand list: %s",
-#define ERR_UNKNOWN_OPCODE ERROR | 16
+#define ERR_UNKNOWN_OPCODE            (ERROR | 16)
     "Unknown opcode: %s",
-#define ERR_SHORT_BRANCH ERROR | 17
+#define ERR_SHORT_BRANCH              (ERROR | 17)
     "Short branch out of page",
-#define ERR_1805_OP ERROR | 18
+#define ERR_1805_OP                   (ERROR | 18)
     "1805 instruction used while not in 1805 mode",
-#define ERR_MISSING_ARG ERROR | 19
+#define ERR_MISSING_ARG               (ERROR | 19)
     "Missing argument",
-#define ERR_ENDP_OUTSIDE_PROC ERROR | 20
+#define ERR_ENDP_OUTSIDE_PROC         (ERROR | 20)
     "ENDP encountered outside PROC",
-#define ERR_UNKNOWN_INST_TYPE ERROR | 21
+#define ERR_UNKNOWN_INST_TYPE         (ERROR | 21)
     "Unknown instruction type: %d",
-#define ERR_PROC_NO_ENDP ERROR | 22
+#define ERR_PROC_NO_ENDP              (ERROR | 22)
     "PROC without ENDP",
-#define ERR_COULD_NOT_OPEN ERROR | 23
-    "Could not open '%s'"};
+#define ERR_COULD_NOT_OPEN            (ERROR | 23)
+    "Could not open '%s'",
+#define ERR_ADDR_OUTSIDE_MEM          (ERROR | 24)
+    "Address %04x is neither RAM nor ROM"
+};
 
 static const char *wmessages[] = {
 #define WRN_NO_OPERANDS WARNING | 0
     "%s does not take operands",
 #define WRN_ORG_IN_PROC WARNING | 1
-    "ORG not allowed inside of PROC"};
+    "ORG not allowed inside of PROC"
+};
 
 void doError(int msgno, ...)
 {
@@ -328,7 +332,10 @@ void doError(int msgno, ...)
   offset += vsnprintf(buffer + offset, sizeof(buffer) - offset, msg, args);
   va_end(args);
 
-  fprintf(stderr, "%s:%d: %s\n", sourceFiles[fileNumber], lineNumber[fileNumber], buffer);
+  buffer[offset++] = '\n';
+  buffer[offset++] = '\0';
+
+  fprintf(stderr, "%s:%d: %s", sourceFiles[fileNumber], lineNumber[fileNumber], buffer);
   fprintf(stderr, " %4d | %s\n", lineNumber[fileNumber], sourceLine);
 
   if (passNumber == 2 && (showList || createLst))
@@ -546,6 +553,27 @@ int isExternal(int v)
   return -1;
 }
 
+void setCompMode()
+{
+  if (inProc)
+  {
+    compMode = 'P';
+  }
+  else if (address >= ramStart && address <= ramEnd)
+  {
+    compMode = 'A';
+  }
+  else if (address >= romStart && address <= romEnd)
+  {
+    compMode = 'O';
+  }
+  else
+  {
+    compMode = 'N';
+  }
+  memovf = false;
+}
+
 void writeOutput()
 {
   int i;
@@ -596,11 +624,31 @@ void output(byte value)
   char tmp[4];
   if (compMode == 'A' && (address < ramStart || address > ramEnd))
   {
-    doError(ERR_ADDR_EXCEEDS_AVAIL, "RAM");
+    if (!memovf)
+    {
+      doError(ERR_ADDR_EXCEEDS_AVAIL, "RAM", address);
+      memovf = true;
+    }
   }
-  if (compMode == 'O' && (address < romStart || address > romEnd))
+  else if (compMode == 'O' && (address < romStart || address > romEnd))
   {
-    doError(ERR_ADDR_EXCEEDS_AVAIL, "ROM");
+    if (!memovf)
+    {
+      doError(ERR_ADDR_EXCEEDS_AVAIL, "ROM", address);
+      memovf = true;
+    }
+  }
+  else if (compMode == 'N')
+  {
+    if (!memovf)
+    {
+      doError(ERR_ADDR_OUTSIDE_MEM, address);
+      memovf = true;
+    }
+  }
+  else
+  {
+    memovf = false;
   }
   if (passNumber == 1)
   {
@@ -1289,6 +1337,7 @@ void processOrg(word arg)
   outCount = 0;
   address = arg;
   outAddress = address;
+  setCompMode();
 }
 
 void compileOp(char *line)
@@ -1906,6 +1955,20 @@ void Asm(char *line)
       ramEnd = 0xffff;
       romStart = 0x0000;
       romEnd = 0x7fff;
+    }
+    else if (strncasecmp(line, ".arch=mini", 10) == 0)
+    {
+      ramStart = 0x0000;
+      ramEnd = 0xf7ff;
+      romStart = 0xf800;
+      romEnd = 0xffff;
+    }
+    else if (strncasecmp(line, ".arch=max", 9) == 0)
+    {
+      ramStart = 0x0000;
+      ramEnd = 0xefff;
+      romStart = 0xf000;
+      romEnd = 0xffff;
     }
     else if (strncasecmp(line, ".link ", 6) == 0)
     {
@@ -2561,29 +2624,29 @@ void processOption(char *option)
   char *equals;
   if (strcmp(option, "-1805") == 0)
     use1805 = -1;
-  if (strcmp(option, "-b") == 0)
+  else if (strcmp(option, "-b") == 0)
     outMode = 'B';
-  if (strcmp(option, "-i") == 0)
+  else if (strcmp(option, "-i") == 0)
     outMode = 'I';
-  if (strcmp(option, "-r") == 0)
+  else if (strcmp(option, "-r") == 0)
     outMode = 'R';
-  if (strcmp(option, "-l") == 0)
+  else if (strcmp(option, "-l") == 0)
     showList = -1;
-  if (strcmp(option, "-L") == 0)
+  else if (strcmp(option, "-L") == 0)
     createLst = -1;
-  if (strcmp(option, "-s") == 0)
+  else if (strcmp(option, "-s") == 0)
     showSymbols = -1;
-  if (strcmp(option, "-e") == 0)
+  else if (strcmp(option, "-e") == 0)
     useExtended = -1;
-  if (strcmp(option, "-lf") == 0)
+  else if (strcmp(option, "-lf") == 0)
     strcpy(lineEnding, "\n");
-  if (strcmp(option, "-cr") == 0)
+  else if (strcmp(option, "-cr") == 0)
     strcpy(lineEnding, "\r");
-  if (strcmp(option, "-crlf") == 0)
+  else if (strcmp(option, "-crlf") == 0)
     strcpy(lineEnding, "\r\n");
-  if (strcmp(option, "-lfcr") == 0)
+  else if (strcmp(option, "-lfcr") == 0)
     strcpy(lineEnding, "\n\r");
-  if (strncmp(option, "-D", 2) == 0)
+  else if (strncmp(option, "-D", 2) == 0)
   {
     option += 2;
     strcpy(def, option);
@@ -2616,7 +2679,7 @@ void processOption(char *option)
       strcpy(clDefineValues[numClDefines - 1], "1");
     }
   }
-  if (strncmp(option, "-I", 2) == 0)
+  else if (strncmp(option, "-I", 2) == 0)
   {
     option += 2;
     numIncPath++;
@@ -2627,59 +2690,72 @@ void processOption(char *option)
     incPath[numIncPath - 1] = (char *)malloc(strlen(option) + 1);
     strcpy(incPath[numIncPath - 1], option);
   }
-
-  if (strcmp(option, "-melf") == 0)
+  else if (strcmp(option, "-melf") == 0)
   {
     ramStart = 0x0000;
     ramEnd = 0x7fff;
     romStart = 0x8000;
     romEnd = 0xffff;
   }
-  if (strcmp(option, "-pev") == 0)
+  else if (strcmp(option, "-pev") == 0)
   {
     ramStart = 0x0000;
     ramEnd = 0x7fff;
     romStart = 0x8000;
     romEnd = 0xffff;
   }
-  if (strcmp(option, "-pev2") == 0)
+  else if (strcmp(option, "-pev2") == 0)
   {
     ramStart = 0x0000;
     ramEnd = 0x7fff;
     romStart = 0x8000;
     romEnd = 0xffff;
   }
-  if (strcmp(option, "-elf2k") == 0)
+  else if (strcmp(option, "-elf2k") == 0)
   {
     ramStart = 0x0000;
     ramEnd = 0x7fff;
     romStart = 0x8000;
     romEnd = 0xffff;
   }
-  if (strcmp(option, "-mclo") == 0)
+  else if (strcmp(option, "-mclo") == 0)
   {
     ramStart = 0x0000;
     ramEnd = 0x7fff;
     romStart = 0x8000;
     romEnd = 0xffff;
   }
-  if (strcmp(option, "-mchi") == 0)
+  else if (strcmp(option, "-mchi") == 0)
   {
     ramStart = 0x8000;
     ramEnd = 0xffff;
     romStart = 0x0000;
     romEnd = 0x7fff;
   }
-  if (strcmp(option, "-mchip") == 0)
+  else if (strcmp(option, "-mchip") == 0)
   {
     ramStart = 0x8000;
     ramEnd = 0xffff;
     romStart = 0x0000;
     romEnd = 0x7fff;
   }
-  if (strncmp(option, "-ram=", 5) == 0)
+  else if (strcmp(option, "-mini") == 0)
+  {
+    ramStart = 0x0000;
+    ramEnd = 0xf7ff;
+    romStart = 0xf800;
+    romEnd = 0xffff;
+  }
+  else if (strcmp(option, "-max") == 0)
+  {
+    ramStart = 0x0000;
+    ramEnd = 0xefff;
+    romStart = 0xf000;
+    romEnd = 0xffff;
+  }
+  else if (strncmp(option, "-ram=", 5) == 0)
     processRAM(option + 5);
-  if (strncmp(option, "-rom=", 5) == 0)
+  else if (strncmp(option, "-rom=", 5) == 0)
     processROM(option + 5);
 }
 
@@ -2935,6 +3011,8 @@ int main(int argc, char **argv)
   ramEnd = 0xffff;
   romStart = 0xffff;
   romEnd = 0xffff;
+  compMode = 'A';
+  memovf = false;
   showList = 0;
   showSymbols = 0;
   use1805 = 0;
