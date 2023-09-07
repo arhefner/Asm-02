@@ -21,8 +21,3 @@ clean:
 install:
 	cp asm02 /usr/local/bin/
 	chmod a+rx /usr/local/bin/asm02
-
-asm.o:           header.h asm.c
-ya_getopt.o:     ya_getopt.h ya_getopt.c
-mmap.o:          mmap.h mmap.c
-

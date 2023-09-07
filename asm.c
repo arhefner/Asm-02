@@ -2629,17 +2629,19 @@ void processROM(char *buffer)
   romEnd = getHex(buffer);
 }
 
-#define LF_ARG 0x80
-#define CR_ARG 0x81
-#define CRLF_ARG 0x82
-#define LFCR_ARG 0x83
-#define MELF_ARG 0x84
-#define PEV_ARG 0x85
-#define PEV2_ARG 0x86
+#define LF_ARG    0x80
+#define CR_ARG    0x81
+#define CRLF_ARG  0x82
+#define LFCR_ARG  0x83
+#define MELF_ARG  0x84
+#define PEV_ARG   0x85
+#define PEV2_ARG  0x86
 #define ELF2K_ARG 0x87
-#define MCLO_ARG 0x88
-#define MCHI_ARG 0x89
+#define MCLO_ARG  0x88
+#define MCHI_ARG  0x89
 #define MCHIP_ARG 0x8A
+#define MINI_ARG  0x8B
+#define MAX_ARG   0x8C
 
 void help()
 {
@@ -2654,7 +2656,7 @@ void help()
           "-l,-showlist  - Show assembly list\n"
           "-L,-list      - Create .lst file\n"
           "-s,-symbols   - Show symbols\n"
-          "-map          - Show memory map in binary or intel mode\n"
+          "-m,-map       - Show memory map in binary or intel mode\n"
           "-melf         - Set Micro/Elf memory model\n"
           "-pev          - Set Pico/Elf memory model\n"
           "-pev2         - Set Pico/Elf V2 memory model\n"
@@ -2670,46 +2672,48 @@ void help()
 }
 
 struct option long_opts[] =
-    {
-        { "1805", no_argument, &use1805, -1 },
-        { "binary", no_argument, &outMode, 'B' },
-        { "b", no_argument, &outMode, 'B' },
-        { "intel", no_argument, &outMode, 'I' },
-        { "i", no_argument, &outMode, 'I' },
-        { "reloc", no_argument, &outMode, 'R' },
-        { "r", no_argument, &outMode, 'R' },
-        { "showlist", no_argument, &showList, -1 },
-        { "l", no_argument, &showList, -1 },
-        { "list", no_argument, &createLst, -1 },
-        { "L", no_argument, &createLst, -1 },
-        { "symbols", no_argument, &showSymbols, -1 },
-        { "s", no_argument, &showSymbols, -1 },
-        { "map", no_argument, &showMap, -1 },
-        { "m", no_argument, &showMap, -1 },
-        { "lf", no_argument, 0, LF_ARG },
-        { "cr", no_argument, 0, CR_ARG },
-        { "crlf", no_argument, 0, CRLF_ARG },
-        { "lfcr", no_argument, 0, LFCR_ARG },
-        { "melf", no_argument, 0, MELF_ARG },
-        { "pev", no_argument, 0, PEV_ARG },
-        { "pev2", no_argument, 0, PEV2_ARG },
-        { "elf2k", no_argument, 0, ELF2K_ARG },
-        { "mclo", no_argument, 0, MCLO_ARG },
-        { "mchi", no_argument, 0, MCHI_ARG },
-        { "mchip", no_argument, 0, MCHIP_ARG },
-        { "mini", no_argument, 0, MINI_ARG },
-        { "max", no_argument, 0, MAX_ARG },
-        { "ram", required_argument, 0, 'R' },
-        { "rom", required_argument, 0, 'M' },
-        { "help", no_argument, 0, 'h' },
-        { 0, 0, 0, 0 }};
+{
+  { "1805", no_argument, &use1805, -1 },
+  { "binary", no_argument, &outMode, 'B' },
+  { "b", no_argument, &outMode, 'B' },
+  { "intel", no_argument, &outMode, 'I' },
+  { "i", no_argument, &outMode, 'I' },
+  { "reloc", no_argument, &outMode, 'R' },
+  { "r", no_argument, &outMode, 'R' },
+  { "showlist", no_argument, &showList, -1 },
+  { "l", no_argument, &showList, -1 },
+  { "list", no_argument, &createLst, -1 },
+  { "L", no_argument, &createLst, -1 },
+  { "symbols", no_argument, &showSymbols, -1 },
+  { "s", no_argument, &showSymbols, -1 },
+  { "map", no_argument, &showMap, -1 },
+  { "m", no_argument, &showMap, -1 },
+  { "lf", no_argument, 0, LF_ARG },
+  { "cr", no_argument, 0, CR_ARG },
+  { "crlf", no_argument, 0, CRLF_ARG },
+  { "lfcr", no_argument, 0, LFCR_ARG },
+  { "melf", no_argument, 0, MELF_ARG },
+  { "pev", no_argument, 0, PEV_ARG },
+  { "pev2", no_argument, 0, PEV2_ARG },
+  { "elf2k", no_argument, 0, ELF2K_ARG },
+  { "mclo", no_argument, 0, MCLO_ARG },
+  { "mchi", no_argument, 0, MCHI_ARG },
+  { "mchip", no_argument, 0, MCHIP_ARG },
+  { "mini", no_argument, 0, MINI_ARG },
+  { "max", no_argument, 0, MAX_ARG },
+  { "ram", required_argument, 0, 'R' },
+  { "rom", required_argument, 0, 'M' },
+  { "help", no_argument, 0, 'h' },
+  { 0, 0, 0, 0 }
+};
 
 void processOption(int c, int index, char *option)
 {
   char def[256];
   char *equals;
 
-  switch (c) {
+  switch (c)
+  {
   case 'h':
     help();
     exit(1);
@@ -2807,7 +2811,6 @@ void processOption(int c, int index, char *option)
     break;
   }
 }
-
 
 int pass(int p, char* srcFile)
 {
@@ -3032,7 +3035,7 @@ void assembleFile(char *sourceFile)
     }
   }
 
-  if (outMode != 'R' && checkOverwrite && showMap)
+  if (checkOverwrite && outMode != 'R' && showMap)
   {
     mmapPrint();
   }
@@ -3058,7 +3061,7 @@ int main(int argc, char **argv)
   int i;
   time_t tv;
   struct tm dt;
-  printf("Asm/02 v1.5\n");
+  printf("Asm/02 v1.7\n");
   printf("by Michael H. Riley\n");
   createLst = 0;
   outMode = 'R';
@@ -3067,18 +3070,17 @@ int main(int argc, char **argv)
   romStart = 0xffff;
   romEnd = 0xffff;
   compMode = 'A';
-  showMap = false;
+  showMap = 0;
   memovf = false;
   showList = 0;
   showSymbols = 0;
   use1805 = 0;
   useExtended = 0;
+  sourceFiles = NULL;
   numSourceFiles = 0;
   numLabels = 0;
   numExternals = 0;
   numIncPath = 0;
-  warn_over = 0;
-  memset(memused, 0, sizeof(memused)); // clear memory used array
   strcpy(lineEnding, "\n");
   tv = time(NULL);
   localtime_r(&tv, &dt);
@@ -3097,23 +3099,21 @@ int main(int argc, char **argv)
       break;
     processOption(c, index, optarg);
   }
-  
-  while (optind< argc)
+
+  while (optind < argc)
   {
-    if (numSourceFiles++ == 0)
-      sourceFiles = (char **)malloc(sizeof(char *));
-    else
-      sourceFiles = (char **)realloc(sourceFiles, sizeof(char *) * numSourceFiles);
+    numSourceFiles++;
+    sourceFiles = (char **)realloc(sourceFiles, sizeof(char *) * numSourceFiles);
     sourceFiles[numSourceFiles - 1] = (char *)malloc(strlen(argv[optind]));
     strcpy(sourceFiles[numSourceFiles - 1], argv[optind++]);
   }
-  
+
   if (numSourceFiles == 0)
   {
     printf("No source files specified\n");
     exit(1);
   }
-  
+
   if (!mmapInit())
   {
     fprintf(stderr, "%s\n", "Insufficient memory for overwrite checking.");
