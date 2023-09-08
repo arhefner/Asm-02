@@ -57,6 +57,11 @@ Command line switches:
   -mchip        - Set MemberChip Card memory model
   -ram=low-high - Set explicit RAM region
   -rom=how-high - Set explicit ROM region
+  -cr           - Use CR as line ending
+  -lf           - Use LF as line ending
+  -crlf         - Use CRLF as line ending
+  -lfcr         - Use LFCR as line ending
+  
 
 Evaluator variables:
 [month]         - Build month

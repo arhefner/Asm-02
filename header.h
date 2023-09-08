@@ -173,7 +173,7 @@ LINK int    buildSecond;
 LINK int    buildNumber;
 LINK word   codeGenerated;
 LINK char   compMode;
-LINK char   createLst;
+LINK int   createLst;
 LINK int    errors;
 LINK word   execAddr;
 LINK word   highest;
@@ -192,7 +192,7 @@ LINK word   outAddress;
 LINK byte   outBuffer[16];
 LINK byte   outCount;
 LINK int    outFile;
-LINK char   outMode;
+LINK int    outMode;
 LINK char   outName[64];
 LINK int    passNumber;
 LINK word   ramEnd;
@@ -200,12 +200,12 @@ LINK word   ramStart;
 LINK word   romEnd;
 LINK word   romStart;
 LINK char   showAsm;
-LINK char   showList;
-LINK char   showSymbols;
+LINK int   showList;
+LINK int   showSymbols;
 LINK char **sourceFiles;
 LINK int    suppression;
 LINK int    numSourceFiles;
-LINK char   use1805;
+LINK int    use1805;
 LINK byte   useAsm;
 LINK byte   useExtended;
 
@@ -213,7 +213,7 @@ LINK FILE  *sourceFile[100];
 LINK int    lineNumber[100];
 LINK int    fileNumber;
 
-LINK byte warn_over;
+LINK int    warn_over;
 LINK byte memused[65536 / sizeof(byte)];
 
 #endif
