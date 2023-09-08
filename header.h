@@ -213,6 +213,7 @@ LINK FILE  *sourceFile[100];
 LINK int    lineNumber[100];
 LINK int    fileNumber;
 
-
+LINK byte warn_over;
+LINK byte memused[65536 / sizeof(byte)];
 
 #endif

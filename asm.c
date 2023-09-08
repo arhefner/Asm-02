@@ -283,14 +283,18 @@ static const char *emessages[] = {
 #define ERR_PROC_NO_ENDP                ERROR|22
   "PROC without ENDP",
 #define ERR_COULD_NOT_OPEN              ERROR|23
-  "Could not open '%s'"
+  "Could not open '%s'",
+#define ERR_MULT_WRITE_TO_ADDRESS       ERROR|24
+  "Attempt to overwrite address %xh"
   };
 
 static const char *wmessages[] = {
 #define WRN_NO_OPERANDS                 WARNING|0
   "%s does not take operands",
 #define WRN_ORG_IN_PROC                 WARNING|1
-  "ORG not allowed inside of PROC"
+  "ORG not allowed inside of PROC",
+#define WRN_MULT_WRITE_TO_ADDRESS       WARNING|2
+  "Overwriting address %xh"
 };
 
 void doError(int msgno, ...) {
@@ -324,6 +328,7 @@ void doError(int msgno, ...) {
   fprintf(stderr, " %4d | %s\n", lineNumber[fileNumber], sourceLine);
 
   if (passNumber == 2 && (showList||createLst)) {
+    strcat(buffer, "\n");
     list(buffer);
     }
   }
@@ -529,6 +534,24 @@ void writeOutput() {
     }
   }
 
+  // check for memory overwrite
+  void check_overwrite() {
+    unsigned index;
+    byte mask;
+    unsigned used;
+    if (passNumber == 2) {
+      index = address / 8; // assume byte is 8 bits
+      mask = 1 << (address % 8);
+      used = memused[index] & mask;
+      if (used) {
+        doError(warn_over?WRN_MULT_WRITE_TO_ADDRESS:ERR_MULT_WRITE_TO_ADDRESS, address);
+      } else {
+        memused[index] |= mask;
+      }
+    }
+  }
+
+// Oddly, compmode is never set anywhere? 
 void output(byte value) {
   char tmp[4];
   if (compMode == 'A' && (address < ramStart || address > ramEnd)) {
@@ -545,10 +568,12 @@ void output(byte value) {
     if (outMode == 'B') {
       if (address < lowAddress) lowAddress = address;
       if (address > highAddress) highAddress = address;
+      check_overwrite();
       memory[address] = value;
       }
     else {
       if (suppression == 0) {
+        check_overwrite();
         outBuffer[outCount++] = value;
         if (outCount == 16) {
           writeOutput();
@@ -2063,104 +2088,153 @@ void processROM(char* buffer) {
   romEnd = getHex(buffer);
   }
 
-void processOption(char* option) {
-  char def[256];
-  char *equals;
-    if (strcmp(option,"-1805") == 0) use1805 = -1;
-    if (strcmp(option,"-b") == 0) outMode = 'B';
-    if (strcmp(option,"-i") == 0) outMode = 'I';
-    if (strcmp(option,"-r") == 0) outMode = 'R';
-    if (strcmp(option,"-l") == 0) showList = -1;
-    if (strcmp(option,"-L") == 0) createLst = -1;
-    if (strcmp(option,"-s") == 0) showSymbols = -1;
-    if (strcmp(option,"-e") == 0) useExtended = -1;
-    if (strcmp(option,"-lf") == 0) strcpy(lineEnding,"\n");
-    if (strcmp(option,"-cr") == 0) strcpy(lineEnding,"\r");
-    if (strcmp(option,"-crlf") == 0) strcpy(lineEnding,"\r\n");
-    if (strcmp(option,"-lfcr") == 0) strcpy(lineEnding,"\n\r");
-    if (strncmp(option,"-D",2) == 0) {
+  void processOption(char *option) {
+    char def[256];
+    char *equals;
+    if (strcmp(option, "-warnover") == 0) {
+      warn_over = 1;
+      return;
+    }
+    if (strcmp(option, "-1805") == 0) {
+      use1805 = -1;
+      return;
+    }
+    if (strcmp(option, "-b") == 0) {
+      outMode = 'B';
+      return;
+    }
+    if (strcmp(option, "-i") == 0) {
+      outMode = 'I';
+      return;
+    }
+    if (strcmp(option, "-r") == 0) {
+      outMode = 'R';
+      return;
+    }
+    if (strcmp(option, "-l") == 0) {
+      showList = -1;
+      return;
+    }
+    if (strcmp(option, "-L") == 0) {
+      createLst = -1;
+      return;
+    }
+    if (strcmp(option, "-s") == 0) {
+      showSymbols = -1;
+      return;
+    }
+    if (strcmp(option, "-e") == 0) {
+      useExtended = -1;
+      return;
+    }
+    if (strcmp(option, "-lf") == 0) {
+      strcpy(lineEnding, "\n");
+      return;
+    }
+    if (strcmp(option, "-cr") == 0) {
+      strcpy(lineEnding, "\r");
+      return;
+    }
+    if (strcmp(option, "-crlf") == 0) {
+      strcpy(lineEnding, "\r\n");
+      return;
+    }
+    if (strcmp(option, "-lfcr") == 0) {
+      strcpy(lineEnding, "\n\r");
+      return;
+    }
+    if (strncmp(option, "-D", 2) == 0) {
       option += 2;
-      strcpy(def,option);
-      equals = strchr(def,'=');
+      strcpy(def, option);
+      equals = strchr(def, '=');
       numClDefines++;
       if (numClDefines == 1) {
-        clDefines = (char**)malloc(sizeof(char*));
-        clDefineValues = (char**)malloc(sizeof(char*));
-        }
-      else {
-        clDefines = (char**)realloc(clDefines,sizeof(char*)*numClDefines);
-        clDefineValues = (char**)realloc(clDefineValues,sizeof(char*)*numClDefines);
-        }
+        clDefines = (char **)malloc(sizeof(char *));
+        clDefineValues = (char **)malloc(sizeof(char *));
+      } else {
+        clDefines = (char **)realloc(clDefines, sizeof(char *) * numClDefines);
+        clDefineValues =
+            (char **)realloc(clDefineValues, sizeof(char *) * numClDefines);
+      }
       if (equals != NULL) {
         *equals = 0;
         equals++;
-        clDefines[numClDefines-1] = (char*)malloc(strlen(def)+1);
-        clDefineValues[numClDefines-1] = (char*)malloc(strlen(equals)+1);
-        strcpy(clDefines[numClDefines-1], def);
-        strcpy(clDefineValues[numClDefines-1], equals);
-        }
-      else {
-        clDefines[numClDefines-1] = (char*)malloc(strlen(option)+1);
-        clDefineValues[numClDefines-1] = (char*)malloc(2);
-        strcpy(clDefines[numClDefines-1], option);
-        strcpy(clDefineValues[numClDefines-1], "1");
-        }
+        clDefines[numClDefines - 1] = (char *)malloc(strlen(def) + 1);
+        clDefineValues[numClDefines - 1] = (char *)malloc(strlen(equals) + 1);
+        strcpy(clDefines[numClDefines - 1], def);
+        strcpy(clDefineValues[numClDefines - 1], equals);
+      } else {
+        clDefines[numClDefines - 1] = (char *)malloc(strlen(option) + 1);
+        clDefineValues[numClDefines - 1] = (char *)malloc(2);
+        strcpy(clDefines[numClDefines - 1], option);
+        strcpy(clDefineValues[numClDefines - 1], "1");
       }
-    if (strncmp(option,"-I",2) == 0) {
+      return;
+    }
+    if (strncmp(option, "-I", 2) == 0) {
       option += 2;
       numIncPath++;
       if (numIncPath == 1)
-        incPath = (char**)malloc(sizeof(char*));
+        incPath = (char **)malloc(sizeof(char *));
       else
-        incPath = (char**)realloc(incPath,sizeof(char*)*numIncPath);
-      incPath[numIncPath-1] = (char*)malloc(strlen(option)+1);
-      strcpy(incPath[numIncPath-1], option);
-      }
+        incPath = (char **)realloc(incPath, sizeof(char *) * numIncPath);
+      incPath[numIncPath - 1] = (char *)malloc(strlen(option) + 1);
+      strcpy(incPath[numIncPath - 1], option);
+      return;
+    }
 
-    if (strcmp(option,"-melf") == 0) {
+    if (strcmp(option, "-melf") == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
-      }
-    if (strcmp(option,"-pev") == 0) {
+    }
+    if (strcmp(option, "-pev") == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
-      }
-    if (strcmp(option,"-pev2") == 0) {
+    }
+    if (strcmp(option, "-pev2") == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
-      }
-    if (strcmp(option,"-elf2k") == 0) {
+    }
+    if (strcmp(option, "-elf2k") == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
-      }
-    if (strcmp(option,"-mclo") == 0) {
+    }
+    if (strcmp(option, "-mclo") == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
-      }
-    if (strcmp(option,"-mchi") == 0) {
+    }
+    if (strcmp(option, "-mchi") == 0) {
       ramStart = 0x8000;
       ramEnd = 0xffff;
       romStart = 0x0000;
       romEnd = 0x7fff;
-      }
-    if (strcmp(option,"-mchip") == 0) {
+      return;
+    }
+    if (strcmp(option, "-mchip") == 0) {
       ramStart = 0x8000;
       ramEnd = 0xffff;
       romStart = 0x0000;
       romEnd = 0x7fff;
-      }
-    if (strncmp(option,"-ram=",5) == 0) processRAM(option+5);
-    if (strncmp(option,"-rom=",5) == 0) processROM(option+5);
+      return;
+    }
+    if (strncmp(option, "-ram=", 5) == 0) {
+      processRAM(option + 5);
+      return;
+    }
+    if (strncmp(option, "-rom=", 5) == 0) {
+      processROM(option + 5);
+      return;
+    }
   }
 
 int pass(int p, char* srcFile) {
@@ -2380,7 +2454,10 @@ int main(int argc, char** argv) {
   numLabels = 0;
   numExternals = 0;
   numIncPath = 0;
-  strcpy(lineEnding,"\n");
+  warn_over = 0; 
+  memset(memused, 0, sizeof(memused)); // clear memory used array
+  compMode = 0;  // NOTE: This appears to never be set (execept here)
+  strcpy(lineEnding, "\n");
   tv = time(NULL);
   localtime_r(&tv, &dt);
   buildMonth = dt.tm_mon + 1;

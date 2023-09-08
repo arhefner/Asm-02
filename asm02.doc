@@ -46,6 +46,7 @@ Command line switches:
   -Ipath        - Add path to search list for #include files
   -l            - Show assembly list
   -L            - Create .lst file
+  -warnover     - Treat overwriting an address (in binary or Intel mode) as a warning (normally an error)
   -s            - Show symbols
   -melf         - Set Micro/Elf memory model
   -pev          - Set Pico/Elf memory model
