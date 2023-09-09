@@ -2363,7 +2363,7 @@ void clear() {
   addLabel("rf",15);
   }
 
-void assembleFile(char* sourceFile, int argc, char** argv) {
+void assembleFile(char* sourceFile) {
   int i;
   char tmp[1024];
   FILE *buildFile;
@@ -2496,7 +2496,6 @@ void assembleFile(char* sourceFile, int argc, char** argv) {
     }
   while (optind< argc)
   {
-    printf("Now processing %s\n", argv[optind]);
     if (numSourceFiles++ == 0)
       sourceFiles = (char **)malloc(sizeof(char *));
       else
@@ -2510,7 +2509,8 @@ void assembleFile(char* sourceFile, int argc, char** argv) {
       exit(1);
     }
   for (i=0; i<numSourceFiles; i++)
-    assembleFile(sourceFiles[i], argc, argv);
-  if (errors > 0) return 1;
+    assembleFile(sourceFiles[i]);
+  if (errors > 0)
+    return 1;
   return 0;
   }
