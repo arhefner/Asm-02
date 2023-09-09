@@ -9,12 +9,14 @@
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <io.h>
+#include "ya_getopt.h"
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
 #define localtime_r(X,Y) (localtime_s(Y,X))
 #else
 #include <unistd.h>
 #include <sys/time.h>
+#include <getopt.h>
 #define O_BINARY 0
 #endif
 
