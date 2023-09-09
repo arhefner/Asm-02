@@ -11,6 +11,11 @@
 
 #include <time.h>
 //moved sys/time.h to header.h
+#ifdef USE_YA_GETOPT
+#include "ya_getopt.h"
+#else
+#include <getopt.h>
+#endif
 
 #include "header.h"
 
@@ -227,9 +232,132 @@ char* lineNo() {
   return buffer;
   }
 
+#define MAX_ERROR			            1025
+
+#define ERROR                     0x80000000
+#define WARNING                   0x40000000
+
+#define SEVERITY(msgno)           (msgno & 0xc0000000)
+#define MSG_INDEX(msgno)          (msgno & 0x3fffffff)
+
+static const char *emessages[] = {
+#define ERR_DUPLICATE_LABEL             ERROR|0
+  "Duplicate label: %s",
+#define ERR_LABEL_NOT_FOUND             ERROR|1
+  "Label not found: %s",
+#define ERR_ADDR_EXCEEDS_AVAIL          ERROR|2
+  "Address exceeded available %s",
+#define ERR_INVALID_OP                  ERROR|3
+  "Invalid OP: %c (%02x)",
+#define ERR_UNBAL_PAREN                 ERROR|4
+  "Expression error: ) without (",
+#define ERR_INVALID_OP_FORMAT           ERROR|5
+  "Invalid .op format: %s",
+#define ERR_INVALID_CHAR_IN_OP          ERROR|6
+  "Invalid character in opcode name: %s",
+#define ERR_DUPLICATE_DEFINE            ERROR|7
+  "Duplicate define: %s",
+#define ERR_PREPROC_ERROR               ERROR|8
+  "%s",
+#define ERR_UNMATCHED_ELIF              ERROR|9
+  "Unmatched #elif",
+#define ERR_UNMATCHED_ELSE              ERROR|10
+  "Unmatched #else",
+#define ERR_UNMATCHED_ENDIF             ERROR|11
+  "Unmatched #endif",
+#define ERR_UNRECOGNIZED_DIRECTIVE      ERROR|12
+  "Unrecognized assembler directive: %s",
+#define ERR_INVALID_LABEL               ERROR|13
+  "Missing ':' at label: %s",
+#define ERR_PREPROC_FIRST               ERROR|14
+  "Preprocessor directive must be at start of line",
+#define ERR_INVALID_OPERANDS            ERROR|15
+  "Invalid operand list: %s",
+#define ERR_UNKNOWN_OPCODE              ERROR|16
+  "Unknown opcode: %s",
+#define ERR_SHORT_BRANCH                ERROR|17
+  "Short branch out of page",
+#define ERR_1805_OP                     ERROR|18
+  "1805 instruction used while not in 1805 mode",
+#define ERR_MISSING_ARG                 ERROR|19
+  "Missing argument",
+#define ERR_ENDP_OUTSIDE_PROC           ERROR|20
+  "ENDP encountered outside PROC",
+#define ERR_UNKNOWN_INST_TYPE           ERROR|21
+  "Unknown instruction type: %d",
+#define ERR_PROC_NO_ENDP                ERROR|22
+  "PROC without ENDP",
+#define ERR_COULD_NOT_OPEN              ERROR|23
+  "Could not open '%s'",
+#define ERR_MULT_WRITE_TO_ADDRESS       ERROR|24
+  "Attempt to overwrite address %xh"
+  };
+
+static const char *wmessages[] = {
+#define WRN_NO_OPERANDS                 WARNING|0
+  "%s does not take operands",
+#define WRN_ORG_IN_PROC                 WARNING|1
+  "ORG not allowed inside of PROC",
+#define WRN_MULT_WRITE_TO_ADDRESS       WARNING|2
+  "Overwriting address %xh"
+};
+
+void doError(int msgno, ...) {
+  va_list args;
+  char buffer[MAX_ERROR];
+  int offset;
+  const char *severity;
+  const char *msg;
+
+  switch (SEVERITY(msgno)) {
+    case ERROR:
+      severity = "*ERROR";
+      msg = emessages[MSG_INDEX(msgno)];
+      errors++;
+      break;
+    case WARNING:
+      severity = "!WARNING";
+      msg = wmessages[MSG_INDEX(msgno)];
+      break;
+    default:
+      return;
+    }
+
+  offset = sprintf(buffer, "%s: ", severity);
+
+  va_start(args, msgno);
+  offset += vsnprintf(buffer+offset, sizeof(buffer)-offset, msg, args);
+  va_end(args);
+
+  fprintf(stderr, "%s:%d: %s\n", sourceFiles[fileNumber], lineNumber[fileNumber], buffer);
+  fprintf(stderr, " %4d | %s\n", lineNumber[fileNumber], sourceLine);
+
+  if (passNumber == 2 && (showList||createLst)) {
+    strcat(buffer, "\n");
+    list(buffer);
+    }
+  }
+
 char* trim(char* line) {
   while (*line == ' ' || *line == '\t') line++;
   return line;
+  }
+
+char* strip(char* line) {
+  char* pchar;
+  int quoted = 0;
+  while (*line == ' ' || *line == '\t') line++;
+  for (pchar = line; *pchar != 0; pchar++) {
+    if (*pchar == '\'' || *pchar == '"') {
+      quoted = !quoted;
+      }
+    else if (*pchar == ';' && !quoted) {
+        *pchar++ = ' ';
+        *pchar = '\0';
+        break;
+      }
+    }
+    return line;
   }
 
 int isAlpha(char c) {
@@ -275,9 +403,7 @@ void addLabel(char* label, word value) {
   for (i=0; i<numLabels; i++)
     if (strcasecmp(label, labels[i]) == 0 &&
         strcasecmp(module, labelProcs[i]) == 0) {
-      printf("***ERROR: Duplicate label: %s\n",label);
-      printf("          %s\n",sourceLine);
-      errors++;
+      doError(ERR_DUPLICATE_LABEL, label);
       return;
       }
   numLabels++;
@@ -321,9 +447,6 @@ word getLabel(char* label) {
         (strcasecmp(" ", labelProcs[i]) == 0 ||
          strcasecmp("*", labelProcs[i]) == 0))
       return labelValues[i];
-  printf("***ERROR: Label not found: %s\n",label);
-  printf("%s\n",sourceLine);
-  errors++;
   return 0;
   }
 
@@ -354,21 +477,20 @@ int findLabel(char* label) {
            strcasecmp("*", labelProcs[i]) == 0)) {
       return i;
       }
-  printf("***ERROR: Label not found: %s\n",label);
-  printf("%s\n",sourceLine);
-  errors++;
+  if (passNumber == 2) {
+    doError(ERR_LABEL_NOT_FOUND, label);
+    }
   return -1;
   }
 
 void setLabel(char* label, word value) {
   int i;
-  for (i=0; i<numLabels; i++)
+  for (i=0; i<numLabels; i++) {
     if (strcasecmp(label, labels[i]) == 0) {
       labelValues[i] = value;
       return;
       }
-  printf("***ERROR: Label not found: %s\n",label);
-  errors++;
+    }
   }
 
 int isExternal(int v) {
@@ -413,19 +535,35 @@ void writeOutput() {
     write(outFile, outLine, strlen(outLine));
     }
   if (outMode == 'B') {
-//    write(outFile, outBuffer, outCount);
+    write(outFile, outBuffer, outCount);
     }
   }
 
+  // check for memory overwrite
+  void check_overwrite() {
+    unsigned index;
+    byte mask;
+    unsigned used;
+    if (passNumber == 2) {
+      index = address / 8; // assume byte is 8 bits
+      mask = 1 << (address % 8);
+      used = memused[index] & mask;
+      if (used) {
+        doError(warn_over?WRN_MULT_WRITE_TO_ADDRESS:ERR_MULT_WRITE_TO_ADDRESS, address);
+      } else {
+        memused[index] |= mask;
+      }
+    }
+  }
+
+// Oddly, compmode is never set anywhere? 
 void output(byte value) {
   char tmp[4];
   if (compMode == 'A' && (address < ramStart || address > ramEnd)) {
-    printf("***ERROR: Address exceeded available RAM");
-    errors++;
+    doError(ERR_ADDR_EXCEEDS_AVAIL, "RAM");
     }
   if (compMode == 'O' && (address < romStart || address > romEnd)) {
-    printf("***ERROR: Address exceeded available ROM");
-    errors++;
+    doError(ERR_ADDR_EXCEEDS_AVAIL, "ROM");
     }
   if (passNumber == 1) {
     if (address > highest) highest = address;
@@ -435,10 +573,12 @@ void output(byte value) {
     if (outMode == 'B') {
       if (address < lowAddress) lowAddress = address;
       if (address > highAddress) highAddress = address;
+      check_overwrite();
       memory[address] = value;
       }
     else {
       if (suppression == 0) {
+        check_overwrite();
         outBuffer[outCount++] = value;
         if (outCount == 16) {
           writeOutput();
@@ -449,6 +589,7 @@ void output(byte value) {
       }
     if (createLst != 0 || showList != 0) {
       if (lstCount == 4) {
+        strcat(listLine, sourceLine);
         strcat(listLine, "\n");
         list(listLine);
         strcpy(listLine,"              ");
@@ -508,6 +649,7 @@ char* asm_convertNumber(char* buffer, dword* value, byte* success) {
     else {
       *value = asmAddress;
       *success = 0xff;
+      usedLocal = 1;
       return buffer;
       }
     }
@@ -716,7 +858,10 @@ char* evaluate(char *pos, dword* result) {
              else op = OP_GT;
              break;
         }
-      if (op == 0) { printf("Invalid OP %c (%02x)\n",*pos, *pos); return 0; }
+      if (op == 0) {
+        doError(ERR_INVALID_OP, *pos, *pos);
+        exit(1);
+        }
       while (ostack > 0 && (ops[ostack-1] & 0xf0) >= (op & 0xf0)) {
         nstack--;
         ostack--;
@@ -769,10 +914,10 @@ char* evaluate(char *pos, dword* result) {
         }
       if (op != OP_END) {
         if (op == OP_CP) {
-          if (usedLocal >= 0 || usedReference >= 0) 
+          if (usedLocal >= 0 || usedReference >= 0)
             referenceLowOffset = numbers[nstack-1] & 0xff;
           if (ops[ostack-1] != OP_OP) {
-            printf("Expression error, ) without (\n");
+            doError(ERR_UNBAL_PAREN);  // ) without (
             return 0;
             }
           ostack--;
@@ -904,7 +1049,7 @@ void processDs(word arg) {
   if (passNumber == 2 && outCount > 0) {
     writeOutput();
     }
-  if (passNumber == 2) {
+  if (passNumber == 2 && outMode == 'R') {
     sprintf(buffer,">%04x\n",arg);
     write(outFile, buffer, strlen(buffer));
     }
@@ -928,7 +1073,7 @@ void compileOp(char* line) {
   oline = line;
   line = trim(line);
   if (*line != '"') {
-    printf("Invalid .op format: %s\n",oline);
+    doError(ERR_INVALID_OP_FORMAT, oline);
     exit(1);
     }
   line++;
@@ -942,25 +1087,25 @@ void compileOp(char* line) {
       op[pos++] = *line++;
       }
     else {
-      printf("Invalid character in opcode name: %s\n",oline);
+      doError(ERR_INVALID_CHAR_IN_OP, oline);
       exit(1);
       }
     }
   op[pos] = 0;
   if (*line != '"') {
-    printf("Invalid .op format: %s\n",oline);
+    doError(ERR_INVALID_OP_FORMAT, oline);
     exit(1);
     }
   line++;
   line = trim(line);
   if (*line != ',') {
-    printf("Invalid .op format: %s\n",oline);
+    doError(ERR_INVALID_OP_FORMAT, oline);
     exit(1);
     }
   line++;
   line = trim(line);
   if (*line != '"') {
-    printf("Invalid .op format: %s\n",oline);
+    doError(ERR_INVALID_OP_FORMAT, oline);
     exit(1);
     }
   line++;
@@ -973,19 +1118,19 @@ void compileOp(char* line) {
     }
   args[pos] = 0;
   if (*line != '"') {
-    printf("Invalid .op format: %s\n",oline);
+    doError(ERR_INVALID_OP_FORMAT, oline);
     exit(1);
     }
   line++;
   line = trim(line);
   if (*line != ',') {
-    printf("Invalid .op format: %s\n",oline);
+    doError(ERR_INVALID_OP_FORMAT, oline);
     exit(1);
     }
   line++;
   line = trim(line);
   if (*line != '"') {
-    printf("Invalid .op format: %s\n",oline);
+     doError(ERR_INVALID_OP_FORMAT, oline);
     exit(1);
     }
   line++;
@@ -995,7 +1140,7 @@ void compileOp(char* line) {
     }
   trans[pos] = 0;
   if (*line != '"') {
-    printf("Invalid .op format: %s\n",oline);
+    doError(ERR_INVALID_OP_FORMAT, oline);
     exit(1);
     }
   numOps++;
@@ -1026,8 +1171,7 @@ void addDefine(char* define, char* value) {
   int i;
   for (i=0; i<numDefines; i++)
     if (strcasecmp(define, defines[i]) == 0) {
-      printf("***ERROR: Duplicate define: %s\n",define);
-      errors++;
+      doError(ERR_DUPLICATE_DEFINE, define);
       return;
       }
   numDefines++;
@@ -1121,138 +1265,151 @@ char* nextLine(char* line) {
       linesAssembled++;
       lineNumber[fileNumber]++;
       flag = 0;
-      while (*ret == ' ') ret++;
+      ret = trim(ret);
       if (*ret == '#') {
+        if (nests[numNests] == 'Y') {
 
-        if (nests[numNests] != 'I') {
-
-          if (nests[numNests] == 'Y') {
-
-            if (strncmp(ret,"#include ",9) == 0) {
-              ret += 9;
-              while (*ret == ' ' || *ret == '\t') ret++;
-              pos = 0;
-              while (*ret != 0 && *ret > ' ')
-                buffer[pos++] = *ret++;
-              buffer[pos] = 0;
-              fileNumber++;
-              lineNumber[fileNumber] = 0;
-              sourceFile[fileNumber] = fopen(buffer,"r");
+          if (strncmp(ret,"#include ",9) == 0) {
+            ret += 9;
+            while (*ret == ' ' || *ret == '\t') ret++;
+            pos = 0;
+            while (*ret != 0 && *ret > ' ')
+              buffer[pos++] = *ret++;
+            buffer[pos] = 0;
+            fileNumber++;
+            lineNumber[fileNumber] = 0;
+            sourceFiles[fileNumber] = strdup(buffer);
+            sourceFile[fileNumber] = fopen(buffer,"r");
+            if (sourceFile[fileNumber] == NULL) {
+              i = 0;
+              while (i < numIncPath) {
+                strcpy(path, incPath[i]);
+                if (path[strlen(path)-1] != '/') strcat(path,"/");
+                strcat(path, buffer);
+                sourceFile[fileNumber] = fopen(path, "r");
+                if (sourceFile[fileNumber] != NULL) i = numIncPath;
+                i++;
+                }
               if (sourceFile[fileNumber] == NULL) {
-                i = 0;
-                while (i < numIncPath) {
-                  strcpy(path, incPath[i]);
-                  if (path[strlen(path)-1] != '/') strcat(path,"/");
-                  strcat(path, buffer);
-                  sourceFile[fileNumber] = fopen(path, "r");
-                  if (sourceFile[fileNumber] != NULL) i = numIncPath;
-                  i++;
-                  }
-                if (sourceFile[fileNumber] == NULL) {
-                  printf("***ERROR: Could not open: %s\n",buffer);
-                  errors++;
-                  }
+                fileNumber--;
+                doError(ERR_COULD_NOT_OPEN, buffer);
                 }
               }
+            }
 
-            if (strncmp(ret,"#define ",8) == 0) {
-              ret += 8;
-              while (*ret == ' ' || *ret == '\t') ret++;
-              pos = 0;
-              while (*ret != 0 && *ret > ' ')
-                buffer[pos++] = *ret++;
-              buffer[pos] = 0;
-              while (*ret == ' ' || *ret == '\t') ret++;
-              if (*ret == 0) addDefine(buffer,"1");
-                else addDefine(buffer, ret);
-              }
+          if (strncmp(ret,"#define ",8) == 0) {
+            ret += 8;
+            while (*ret == ' ' || *ret == '\t') ret++;
+            pos = 0;
+            while (*ret != 0 && *ret > ' ')
+              buffer[pos++] = *ret++;
+            buffer[pos] = 0;
+            ret = strip(ret);
+            if (*ret == 0) addDefine(buffer,"1");
+              else addDefine(buffer, ret);
+            }
 
-            if (strncasecmp(ret,"#error",6) == 0) {
+          if (strncasecmp(ret,"#error",6) == 0) {
+            ret += 6;
+            ret = trim(ret);
+            doError(ERR_PREPROC_ERROR, ret);  // #error
+            }
+
+          if (strncasecmp(ret,"#undef",6) == 0) {
+            ret += 6;
+            ret = trim(ret);
+            delDefine(ret);
+            }
+          }
+
+        if (strncmp(ret,"#ifdef ",7) == 0) {
+          if (nests[numNests] == 'Y') {
+            ret += 7;
+            while (*ret == ' ' || *ret == '\t') ret++;
+            pos = 0;
+            while (*ret != 0 && *ret > ' ')
+              buffer[pos++] = *ret++;
+            buffer[pos] = 0;
+            pchar = findDefine(buffer);
+            numNests++;
+            if (pchar != NULL) nests[numNests] = 'Y';
+              else nests[numNests] = 'N';
+            }
+          else {
+            numNests++;
+            nests[numNests] = 'I';
+            }
+          }
+
+        if (strncmp(ret,"#ifndef ",8) == 0) {
+          if (nests[numNests] == 'Y') {
+            ret += 8;
+            while (*ret == ' ' || *ret == '\t') ret++;
+            pos = 0;
+            while (*ret != 0 && *ret > ' ')
+              buffer[pos++] = *ret++;
+            buffer[pos] = 0;
+            pchar = findDefine(buffer);
+            numNests++;
+            if (pchar != NULL) nests[numNests] = 'N';
+              else nests[numNests] = 'Y';
+            }
+          else {
+            numNests++;
+            nests[numNests] = 'I';
+            }
+          }
+
+        if (strncmp(ret,"#if ",4) == 0) {
+          if (nests[numNests] == 'Y') {
+            ret += 4;
+            ret = strip(ret);
+            defReplace(ret);
+            evaluate(ret, &dvalue);
+            value = dvalue;
+            numNests++;
+            if (value != 0) nests[numNests] = 'Y';
+              else nests[numNests] = 'N';
+            }
+          else {
+            numNests++;
+            nests[numNests] = 'I';
+            }
+          }
+
+        if (strncmp(ret,"#elif ",6) == 0) {
+          if (numNests > 0) {
+            if (nests[numNests] == 'N') {
               ret += 6;
-              ret = trim(ret);
-              printf("***ERROR: %s\n",ret);
-              errors++;
-              }
-
-            if (strncasecmp(ret,"#undef",6) == 0) {
-              ret += 6;
-              ret = trim(ret);
-              delDefine(ret);
-              }
-
-            }
-
-          if (strncmp(ret,"#ifdef ",7) == 0) {
-            if (nests[numNests] == 'N') {
-              numNests++;
-              nests[numNests] = 'I';
-              }
-            else {
-              ret += 7;
-              while (*ret == ' ' || *ret == '\t') ret++;
-              pos = 0;
-              while (*ret != 0 && *ret > ' ')
-                buffer[pos++] = *ret++;
-              buffer[pos] = 0;
-              pchar = findDefine(buffer);
-              numNests++;
-              if (pchar != NULL) nests[numNests] = 'Y';
-                else nests[numNests] = 'N';
-              }
-            }
-
-          if (strncmp(ret,"#ifndef ",8) == 0) {
-            if (nests[numNests] == 'N') {
-              numNests++;
-              nests[numNests] = 'I';
-              }
-            else {
-              ret += 8;
-              while (*ret == ' ' || *ret == '\t') ret++;
-              pos = 0;
-              while (*ret != 0 && *ret > ' ')
-                buffer[pos++] = *ret++;
-              buffer[pos] = 0;
-              pchar = findDefine(buffer);
-              numNests++;
-              if (pchar != NULL) nests[numNests] = 'N';
-                else nests[numNests] = 'Y';
-              }
-            }
-
-          if (strncmp(ret,"#if ",4) == 0) {
-            if (nests[numNests] == 'N') {
-              numNests++;
-              nests[numNests] = 'I';
-              }
-            else {
-              ret += 4;
-              while (*ret == ' ' || *ret == '\t') ret++;
+              ret = strip(ret);
               defReplace(ret);
               evaluate(ret, &dvalue);
               value = dvalue;
-              numNests++;
               if (value != 0) nests[numNests] = 'Y';
-                else nests[numNests] = 'N';
               }
-            }
-
-          if (strncmp(ret,"#else",5) == 0) {
-            if (numNests > 0)
-              nests[numNests] = (nests[numNests] == 'Y') ? 'N' : 'Y';
             else {
-              printf("***Error: Unmatched #else\n");
-              errors++;
+              nests[numNests] = 'I';
               }
             }
+          else {
+            doError(ERR_UNMATCHED_ELIF);
+            }
+          }
 
+        if (strncmp(ret,"#else",5) == 0) {
+          if (numNests > 0) {
+            if (nests[numNests] != 'I')
+              nests[numNests] = (nests[numNests] == 'Y') ? 'N' : 'Y';
+            }
+          else {
+            doError(ERR_UNMATCHED_ELSE);
+            }
           }
 
         if (strncmp(ret,"#endif",6) == 0) {
           if (numNests > 0) numNests--;
           else {
-            printf("***Error: Unmatched #endif\n");
-            errors++;
+            doError(ERR_UNMATCHED_ENDIF);
             }
           }
 
@@ -1307,22 +1464,22 @@ void Asm(char* line) {
   char *orig;
   char  label[32];
   char  opcode[32];
-  char  args[128];
+  char  args[256];
   word  operands[32];
   char  operandsEType[32];
   int   operandsERef[32];
   byte  isreg[32];
-  char  *opline;
+  char *opline;
   int   opcount;
   char *pargs;
-  char  buffer[256];
-  dword  value;
-  int    macro;
+  char  buffer[260];
+  dword value;
+  int   macro;
   byte  flag;
   byte  c;
   int   i,j;
   byte  b;
-  byte valid;
+  byte  valid;
   char  lst[1024];
   usedReference = -1;
   orig = sourceLine;
@@ -1344,91 +1501,98 @@ void Asm(char* line) {
       if (strncasecmp(line,"128",3) == 0) address = (address+127) & 0xff80;
       if (strncasecmp(line,"page",4) == 0) address = (address+255) & 0xff00;
       outAddress = address;
-      return;
       }
-    if (strncasecmp(line,".1805",5) == 0) {
+    else if (strncasecmp(line,".1805",5) == 0) {
       use1805 = 0xff;
-      return;
       }
-    if (strncasecmp(line,".list",5) == 0) {
+    else if (strncasecmp(line,".list",5) == 0) {
       showList = 0xff;
-      return;
        }
-    if (strncasecmp(line,".sym",4) == 0) {
+    else if (strncasecmp(line,".sym",4) == 0) {
       showSymbols = 0xff;
-      return;
       }
-    if (strncasecmp(line,".op ",4) == 0) {
+    else if (strncasecmp(line,".op ",4) == 0) {
       compileOp(line+4);
-      return;
       }
-    if (strncasecmp(line,".intel",6) == 0) {
+    else if (strncasecmp(line,".intel",6) == 0) {
       outMode = 'I';
-      return;
       }
-    if (strncasecmp(line,".rcs",4) == 0) {
+    else if (strncasecmp(line,".rcs",4) == 0) {
       outMode = 'R';
-      return;
       }
-    if (strncasecmp(line,".binary",7) == 0) {
+    else if (strncasecmp(line,".binary",7) == 0) {
       outMode = 'B';
-      return;
       }
-    if (strncasecmp(line,".arch=melf",10) == 0) {
+    else if (strncasecmp(line,".arch=melf",10) == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
       }
-    if (strncasecmp(line,".arch=pev",9) == 0) {
+    else if (strncasecmp(line,".arch=pev",9) == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
       }
-    if (strncasecmp(line,".arch=pev2",10) == 0) {
+    else if (strncasecmp(line,".arch=pev2",10) == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
       }
-    if (strncasecmp(line,".arch=elf2k",11) == 0) {
+    else if (strncasecmp(line,".arch=elf2k",11) == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
       }
-    if (strncasecmp(line,".arch=mclo",10) == 0) {
+    else if (strncasecmp(line,".arch=mclo",10) == 0) {
       ramStart = 0x0000;
       ramEnd = 0x7fff;
       romStart = 0x8000;
       romEnd = 0xffff;
       }
-    if (strncasecmp(line,".arch=mchi",10) == 0) {
+    else if (strncasecmp(line,".arch=mchi",10) == 0) {
       ramStart = 0x8000;
       ramEnd = 0xffff;
       romStart = 0x0000;
       romEnd = 0x7fff;
       }
-    if (strncasecmp(line,".arch=mchip",11) == 0) {
+    else if (strncasecmp(line,".arch=mchip",11) == 0) {
       ramStart = 0x8000;
       ramEnd = 0xffff;
       romStart = 0x0000;
       romEnd = 0x7fff;
       }
-    if (strncasecmp(line,".link ",6) == 0) {
+    else if (strncasecmp(line,".link ",6) == 0) {
       line += 6;
       while (*line == ' ' || *line == '\t') line++;
       if (passNumber == 2 && outMode == 'R') {
+        /* Flush any pending output. */
+        if (outCount != 0) {
+          writeOutput();
+          outCount = 0;
+        }
         sprintf(buffer,"%s\n",line);
         write(outFile, buffer, strlen(buffer));
         }
-      return;
       }
-    }
-
-  if (strncasecmp(line,".suppress",9) == 0) {
-    suppression = -1;
+    else if (strncasecmp(line,".suppress",9) == 0) {
+      suppression = -1;
+      }
+    else {
+      label[0] = *line++;
+      pos = 1;
+      while ((*line >= 'a' && *line <= 'z') ||
+             (*line >= 'A' && *line <= 'Z') ||
+             (*line >= '0' && *line <= '9')) {
+               label[pos++] = *line++;
+        }
+        label[pos] = 0;
+        doError(ERR_UNRECOGNIZED_DIRECTIVE, label);
+        sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
+      }
     return;
     }
 
@@ -1447,9 +1611,7 @@ void Asm(char* line) {
       }
     label[pos] = 0;
     if (*line != ':') {
-      printf("***ERROR: Invalid label");
-      printf("%s\n",orig);
-      errors++;
+      doError(ERR_INVALID_LABEL, label);
       sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
@@ -1457,6 +1619,12 @@ void Asm(char* line) {
     }
 
   line = trim(line);
+  if (*line == '#') {
+    doError(ERR_PREPROC_FIRST);
+    sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
+    return;
+    }
+
   if ((*line >= 'a' && *line <= 'z') ||
       (*line >= 'A' && *line <= 'Z')) {
     pos = 0;
@@ -1506,7 +1674,7 @@ void Asm(char* line) {
           }
         opline = trim(opline);
         if (*opline != 0 && *opline != ',') {
-          printf("ERROR: Invalid operand list: %s\n",orig);
+          doError(ERR_INVALID_OPERANDS, orig);  // invalid operand list
           exit(1);
           }
         if (*opline == ',') opline++;
@@ -1525,13 +1693,12 @@ void Asm(char* line) {
             }
           if (flag) {
             macro = i;
-            i = numOps+1; 
+            i = numOps+1;
             }
           }
       }
     if (pos < 0 && macro == -1) {
-      printf("***ERROR: Unknown opcode: %s\n",opcode);
-      errors++;
+      doError(ERR_UNKNOWN_OPCODE, opcode);  // unknown opcode
       sprintf(lst, "%7s                   %s\n",lineNo(), orig); list(lst);
       return;
       }
@@ -1603,7 +1770,7 @@ void Asm(char* line) {
            if (passNumber == 2 && usedLocal >= 0) {
              fixups[numFixups] = address;
              fixupTypes[numFixups] = 'H';
-             fixupLowOffset[numFixups] = ((operands[translation[macro][i] - '1'] & 0xff) - referenceLowOffset) & 0xff;
+             fixupLowOffset[numFixups] = referenceLowOffset;
              numFixups++;
              }
           if (valid) output(b);
@@ -1615,6 +1782,26 @@ void Asm(char* line) {
           b = ((operands[c] >> 8) & 0xff);
           valid = 0xff;
           }
+
+        if (c == 't' || c == 'T') {
+          i++;
+           if (passNumber == 2 && usedLocal >= 0) {
+             fixups[numFixups] = address;
+             fixupTypes[numFixups] = 'T';
+             numFixups++;
+             }
+          if (valid) output(b);
+          c = translation[macro][i] - '1';
+          if (passNumber == 2 && operandsEType[c] != ' ') {
+            sprintf(buffer,"\\%s %04x\n",labels[operandsERef[c]],address);
+            write(outFile, buffer, strlen(buffer));
+            }
+          if (passNumber == 2 && (operands[c] & 0xff00) != (address & 0xff00)) {
+            doError(ERR_SHORT_BRANCH);
+            }
+          if (c >= 0 && c<= 9) b = (operands[c] & 0xff);
+          valid = 0xff;
+          }
         i++;
         }
       if (valid) output(b);
@@ -1623,7 +1810,7 @@ void Asm(char* line) {
       switch (opcodes[pos].typ) {
         case OT_0ARG:
              if (strlen(args) > 0 && passNumber == 2) {
-               printf("WARNING: %s does not take operands\n",opcodes[pos].opcode);
+               doError(WRN_NO_OPERANDS, opcodes[pos].opcode);
                }
              output(opcodes[pos].byte1);
              break;
@@ -1655,11 +1842,12 @@ void Asm(char* line) {
              output(opcodes[pos].byte1);
              value = processArgs(args);
              if (passNumber == 2 && (value & 0xff00) != (address & 0xff00)) {
-               if (fileNumber == 0)
-                 printf("[%05d]: Short branch out of page\n",lineNumber[fileNumber]);
-               else
-                 printf("<%05d>: Short branch out of page\n",lineNumber[fileNumber]);
-               errors++;
+               doError(ERR_SHORT_BRANCH);
+               }
+             if (passNumber == 2 && usedLocal >= 0) {
+               fixups[numFixups] = address;
+               fixupTypes[numFixups] = 'T';
+               numFixups++;
                }
              output(value & 0xff);
              break;
@@ -1678,10 +1866,10 @@ void Asm(char* line) {
         case OT_ORG:
              if (inProc == 0) {
                value = processArgs(args);
-               processOrg(processArgs(args));
+               processOrg(value);
                }
-             else {
-               printf("!!!WARNING!!! ORG not allowed inside of PROC\n");
+             else if (passNumber == 2) {
+               doError(WRN_ORG_IN_PROC);
                }
              break;
         case OT_EQU:
@@ -1705,16 +1893,14 @@ void Asm(char* line) {
              break;
         case OT_680ARG:
              if (use1805 == 0) {
-               printf("***ERROR: 1805 Instruction used while not in 1805 mode\n");
-               errors++;
+               doError(ERR_1805_OP);
                }
              output(0x68);
              output(opcodes[pos].byte1);
              break;
         case OT_681ARG:
              if (use1805 == 0) {
-               printf("***ERROR: 1805 Instruction used while not in 1805 mode\n");
-               errors++;
+               doError(ERR_1805_OP);
                }
              output(0x68);
              output(opcodes[pos].byte1);
@@ -1722,8 +1908,7 @@ void Asm(char* line) {
              break;
         case OT_682ARG:
              if (use1805 == 0) {
-               printf("***ERROR: 1805 Instruction used while not in 1805 mode\n");
-               errors++;
+               doError(ERR_1805_OP);
                }
              output(0x68);
              pargs = evaluate(args, &value);
@@ -1737,15 +1922,13 @@ void Asm(char* line) {
                output(value & 0xff);
                }
              else {
-               printf("***ERROR: Missing argument\n");
-               errors++;
+               doError(ERR_MISSING_ARG);
                }
              break;
         case OT_68NARG:
              if (use1805 == 0) {
-               printf("***ERROR: 1805 Instruction used while not in 1805 mode\n");
-               errors++;
-               }
+               doError(ERR_1805_OP);
+             }
              output(0x68);
              output(opcodes[pos].byte1 | (processArgs(args) & 0xf));
              break;
@@ -1781,7 +1964,7 @@ void Asm(char* line) {
              inProc = -1;
              strcpy(module,args);
              if (passNumber == 2 && outCount > 0) {
-               writeOutput();    
+               writeOutput();
                outCount = 0;
                }
              address = 0;
@@ -1797,11 +1980,10 @@ void Asm(char* line) {
              break;
         case OT_ENDP:
              if (inProc == 0) {
-               printf("***ERROR: ENDP encountered outside PROC\n");
-               errors++;
+               doError(ERR_ENDP_OUTSIDE_PROC);
                }
              if (passNumber == 2 && outCount > 0) {
-               writeOutput();    
+               writeOutput();
                outCount = 0;
                outAddress = address;
                }
@@ -1817,6 +1999,8 @@ void Asm(char* line) {
                    }
                  if (fixupTypes[i] == 'L')
                    sprintf(buffer,"v%04x\n",fixups[i]);
+                 if (fixupTypes[i] == 'T')
+                   sprintf(buffer,"<%04x\n",fixups[i]);
                  write(outFile, buffer, strlen(buffer));
                  }
                sprintf(buffer,"}\n");
@@ -1851,8 +2035,7 @@ void Asm(char* line) {
              output(buildNumber & 0xff);
              break;
         default:
-             printf("***ERROR: Unknown instruction type: %d\n",opcodes[pos].typ);
-             errors++;
+             doError(ERR_UNKNOWN_INST_TYPE, opcodes[pos].typ);
              break;
         }
       }
@@ -1861,7 +2044,9 @@ void Asm(char* line) {
         strcat(listLine, "   ");
         lstCount++;
         }
-      strcat(listLine, sourceLine);
+      if (lstCount <= 4) {
+        strcat(listLine, sourceLine);
+        }
       strcat(listLine, "\n");
       list(listLine);
       }
@@ -1908,105 +2093,165 @@ void processROM(char* buffer) {
   romEnd = getHex(buffer);
   }
 
-void processOption(char* option) {
+
+#define LF_ARG 0x80
+#define CR_ARG 0x81
+#define CRLF_ARG 0x82
+#define LFCR_ARG 0x83
+#define MELF_ARG 0x84
+#define PEV_ARG 0x85
+#define PEV2_ARG 0x86
+#define ELF2K_ARG 0x87
+#define MCLO_ARG 0x88
+#define MCHI_ARG 0x89
+#define MCHIP_ARG 0x8A
+
+
+void help()
+{
+  fprintf(stderr, "%s",
+          "-1805         - Enable 1805 mode\n"
+          "-b,-binary    - Output in binary\n"
+          "-Dname        - Define name with value of '1'\n"
+          "-Dname=value  - Define name with specified value\n"
+          "-r,-reloc     - Output in RCS hex\n"
+          "-i,-intel     - Output in Intel hex\n"
+          "-Ipath        - Add path to search list for #include files\n"
+          "-l,-showlist  - Show assembly list\n"
+          "-L,-list      - Create .lst file\n"
+          "-s,-symbols   - Show symbols\n"
+          "-warnover     - Warn (instead of error) if overwriting in binary or intel mode\n"
+          "-melf         - Set Micro/Elf memory model\n"
+          "-pev          - Set Pico/Elf memory model\n"
+          "-pev2         - Set Pico/Elf V2 memory model\n"
+          "-elf2k        - Set Elf2000 memory model\n"
+          "-mclo         - Set Membership Card low RAM memory model\n"
+          "-mchi         - Set Membership Card high RAM memory model\n"
+          "-mchip        - Set MemberChip Card memory model\n"
+          "-ram=low-high - Set explicit RAM region\n"
+          "-rom=how-high - Set explicit ROM region\n"
+          "-h,-help      - This message\n");
+}
+
+struct option long_opts[] =
+    {
+        {"warnover", no_argument, &warn_over, 1},
+        {"1805", no_argument, &use1805, -1},
+        {"binary", no_argument, &outMode, 'B'},
+        {"b", no_argument, &outMode, 'B'},
+        {"intel", no_argument, &outMode, 'I'},
+        {"i", no_argument, &outMode, 'I'},
+        {"reloc", no_argument, &outMode, 'R'},
+        {"r", no_argument, &outMode, 'R'},
+        {"showlist", no_argument, &showList, -1},
+        {"l", no_argument, &showList, -1},
+        {"list", no_argument, &createLst, -1},
+        {"L", no_argument, &createLst, -1},
+        {"symbols", no_argument, &showSymbols, -1},
+        {"s", no_argument, &showSymbols, -1},
+        {"lf", no_argument, 0, LF_ARG},
+        {"cr", no_argument, 0, CR_ARG},
+        {"crlf", no_argument, 0, CRLF_ARG},
+        {"lfcr", no_argument, 0, LFCR_ARG},
+        {"melf", no_argument, 0, MELF_ARG},
+        {"pev", no_argument, 0, PEV_ARG},
+        {"pev2", no_argument, 0, PEV2_ARG},
+        {"elf2k", no_argument, 0, ELF2K_ARG},
+        {"mclo", no_argument, 0, MCLO_ARG},
+        {"mchi", no_argument, 0, MCHI_ARG},
+        {"mchip", no_argument, 0, MCHIP_ARG},
+        {"ram", required_argument, 0, 'R'},
+        {"rom", required_argument, 0, 'M'},
+        {"help", no_argument, 0, 'h'},
+{
+  0, 0, 0, 0}};
+
+void processOption(int c, int index, char *option)
+{
   char def[256];
   char *equals;
-    if (strcmp(option,"-1805") == 0) use1805 = -1;
-    if (strcmp(option,"-b") == 0) outMode = 'B';
-    if (strcmp(option,"-i") == 0) outMode = 'I';
-    if (strcmp(option,"-r") == 0) outMode = 'R';
-    if (strcmp(option,"-l") == 0) showList = -1;
-    if (strcmp(option,"-L") == 0) createLst = -1;
-    if (strcmp(option,"-s") == 0) showSymbols = -1;
-    if (strcmp(option,"-e") == 0) useExtended = -1;
-    if (strcmp(option,"-lf") == 0) strcpy(lineEnding,"\n");
-    if (strcmp(option,"-cr") == 0) strcpy(lineEnding,"\r");
-    if (strcmp(option,"-crlf") == 0) strcpy(lineEnding,"\r\n");
-    if (strcmp(option,"-lfcr") == 0) strcpy(lineEnding,"\n\r");
-    if (strncmp(option,"-D",2) == 0) {
-      option += 2;
-      strcpy(def,option);
-      equals = strchr(def,'=');
+
+  switch (c) {
+  case 'h':
+    help();
+    exit(1);
+    break;
+
+  case LF_ARG:
+    strcpy(lineEnding,"\n");
+    break;
+  case CR_ARG:
+    strcpy(lineEnding,"\r");
+    break;
+  case CRLF_ARG:
+    strcpy(lineEnding,"\r\n");
+    break;
+  case LFCR_ARG:
+    strcpy(lineEnding,"\n\r");
+    break;
+  case 'D':
+      strcpy(def, option);
+      equals = strchr(def, '=');
       numClDefines++;
       if (numClDefines == 1) {
-        clDefines = (char**)malloc(sizeof(char*));
-        clDefineValues = (char**)malloc(sizeof(char*));
-        }
-      else {
-        clDefines = (char**)realloc(clDefines,sizeof(char*)*numClDefines);
-        clDefineValues = (char**)realloc(clDefineValues,sizeof(char*)*numClDefines);
-        }
+        clDefines = (char **)malloc(sizeof(char *));
+        clDefineValues = (char **)malloc(sizeof(char *));
+      } else {
+        clDefines = (char **)realloc(clDefines, sizeof(char *) * numClDefines);
+        clDefineValues =
+            (char **)realloc(clDefineValues, sizeof(char *) * numClDefines);
+      }
       if (equals != NULL) {
         *equals = 0;
         equals++;
-        clDefines[numClDefines-1] = (char*)malloc(strlen(def)+1);
-        clDefineValues[numClDefines-1] = (char*)malloc(strlen(equals)+1);
-        strcpy(clDefines[numClDefines-1], def);
-        strcpy(clDefineValues[numClDefines-1], equals);
-        }
-      else {
-        clDefines[numClDefines-1] = (char*)malloc(strlen(option)+1);
-        clDefineValues[numClDefines-1] = (char*)malloc(2);
-        strcpy(clDefines[numClDefines-1], option);
-        strcpy(clDefineValues[numClDefines-1], "1");
-        }
-      }
-    if (strncmp(option,"-I",2) == 0) {
-      option += 2;
-      numIncPath++;
-      if (numIncPath == 1) 
-        incPath = (char**)malloc(sizeof(char*));
-      else
-        incPath = (char**)realloc(incPath,sizeof(char*)*numIncPath);
-      incPath[numIncPath-1] = (char*)malloc(strlen(option)+1);
-      strcpy(incPath[numIncPath-1], option);
+        clDefines[numClDefines - 1] = (char *)malloc(strlen(def) + 1);
+        clDefineValues[numClDefines - 1] = (char *)malloc(strlen(equals) + 1);
+        strcpy(clDefines[numClDefines - 1], def);
+        strcpy(clDefineValues[numClDefines - 1], equals);
+      } else {
+        clDefines[numClDefines - 1] = (char *)malloc(strlen(option) + 1);
+        clDefineValues[numClDefines - 1] = (char *)malloc(2);
+        strcpy(clDefines[numClDefines - 1], option);
+        strcpy(clDefineValues[numClDefines - 1], "1");
       }
 
-    if (strcmp(option,"-melf") == 0) {
-      ramStart = 0x0000;
-      ramEnd = 0x7fff;
-      romStart = 0x8000;
-      romEnd = 0xffff;
-      }
-    if (strcmp(option,"-pev") == 0) {
-      ramStart = 0x0000;
-      ramEnd = 0x7fff;
-      romStart = 0x8000;
-      romEnd = 0xffff;
-      }
-    if (strcmp(option,"-pev2") == 0) {
-      ramStart = 0x0000;
-      ramEnd = 0x7fff;
-      romStart = 0x8000;
-      romEnd = 0xffff;
-      }
-    if (strcmp(option,"-elf2k") == 0) {
-      ramStart = 0x0000;
-      ramEnd = 0x7fff;
-      romStart = 0x8000;
-      romEnd = 0xffff;
-      }
-    if (strcmp(option,"-mclo") == 0) {
-      ramStart = 0x0000;
-      ramEnd = 0x7fff;
-      romStart = 0x8000;
-      romEnd = 0xffff;
-      }
-    if (strcmp(option,"-mchi") == 0) {
-      ramStart = 0x8000;
-      ramEnd = 0xffff;
-      romStart = 0x0000;
-      romEnd = 0x7fff;
-      }
-    if (strcmp(option,"-mchip") == 0) {
-      ramStart = 0x8000;
-      ramEnd = 0xffff;
-      romStart = 0x0000;
-      romEnd = 0x7fff;
-      }
-    if (strncmp(option,"-ram=",5) == 0) processRAM(option+5);
-    if (strncmp(option,"-rom=",5) == 0) processROM(option+5);
+    break;
+  case 'I':
+      numIncPath++;
+      if (numIncPath == 1)
+        incPath = (char **)malloc(sizeof(char *));
+      else
+        incPath = (char **)realloc(incPath, sizeof(char *) * numIncPath);
+      incPath[numIncPath - 1] = (char *)malloc(strlen(option) + 1);
+      strcpy(incPath[numIncPath - 1], option);
+      return;
+    break;
+  case 'R':
+    processRAM(option);
+    break;
+  case 'M':
+    processROM(option);
+    break;
+  case MELF_ARG:
+  case PEV_ARG:
+  case PEV2_ARG:
+  case ELF2K_ARG:
+  case MCLO_ARG:
+    ramStart=0;
+    ramEnd=0x7fff;
+    romStart=0x8000;
+    romEnd=0xFFFF;
+    break;
+ case MCHI_ARG:
+ case MCHIP_ARG:
+    ramStart=0x8000;
+    ramEnd=0xffff;
+    romStart=0;
+    romEnd=0x7fff;
+    break;
   }
+}
+
 
 int pass(int p, char* srcFile) {
   int i;
@@ -2051,10 +2296,9 @@ int pass(int p, char* srcFile) {
     }
   fclose(sourceFile[0]);
   if (inProc) {
-    printf("***ERROR: PROC without ENDP\n");
-    errors++;
+    doError(ERR_PROC_NO_ENDP);
     }
-  if (passNumber == 2 && outCount > 0) writeOutput();    
+  if (passNumber == 2 && outCount > 0) writeOutput();
   if (passNumber == 2 && outMode != 'B') {
     //write EOF before closing intel hex file
     if (outMode == 'I') {
@@ -2066,7 +2310,7 @@ int pass(int p, char* srcFile) {
         write(outFile, buffer, strlen(buffer));
         }
       }
-    close(outFile); 
+    close(outFile);
   }
   if (passNumber == 2 && createLst) fclose(lstFile);
   if (numNests > 0) printf("#ifdef without #endif\n");
@@ -2119,7 +2363,7 @@ void clear() {
   addLabel("rf",15);
   }
 
-void assembleFile(char* sourceFile, int argc, char** argv) {
+void assembleFile(char* sourceFile) {
   int i;
   char tmp[1024];
   FILE *buildFile;
@@ -2156,13 +2400,6 @@ void assembleFile(char* sourceFile, int argc, char** argv) {
   buildFile = fopen(tmp,"w");
   fprintf(buildFile,"%d\n",buildNumber);
   fclose(buildFile);
-  
-
-//  for (i=0; i<argc; i++) {
-//    if (strncmp(argv[i],"-D",2) == 0) {
-//      addDefine(argv[i]+2,"1");
-//      }
-//    }
 
   for (i=0; i<numClDefines; i++)
     addDefine(clDefines[i], clDefineValues[i]);
@@ -2170,11 +2407,6 @@ void assembleFile(char* sourceFile, int argc, char** argv) {
   i = pass(1, sourceFile);
   numDefines = 0;
   if (i == 0 && errors == 0) {
-//    for (i=0; i<argc; i++) {
-//      if (strncmp(argv[i],"-D",2) == 0) {
-//        addDefine(argv[i]+2,"1");
-//        }
-//      }
     for (i=0; i<numClDefines; i++)
       addDefine(clDefines[i], clDefineValues[i]);
     i = pass(2, sourceFile);
@@ -2218,55 +2450,67 @@ void assembleFile(char* sourceFile, int argc, char** argv) {
   numLabels = 0;
   }
 
-int main(int argc, char** argv) {
-  int i;
-  time_t tv;
-  struct tm dt;
-  printf("Asm/02 v1.1\n");
-  printf("by Michael H. Riley\n");
-  createLst = 0;
-  outMode = 'R';
-  ramStart = 0x0000;
-  ramEnd = 0xffff;
-  romStart = 0xffff;
-  romEnd = 0xffff;
-  showList = 0;
-  showSymbols = 0;
-  use1805 = 0;
-  useExtended = 0;
-  numSourceFiles = 0;
-  numLabels = 0;
-  numExternals = 0;
-  numIncPath = 0;
-  strcpy(lineEnding,"\n");
-  tv = time(NULL);
-  localtime_r(&tv, &dt);
-  buildMonth = dt.tm_mon + 1;
-  buildDay = dt.tm_mday;
-  buildYear = dt.tm_year + 1900;
-  buildHour = dt.tm_hour;
-  buildMinute = dt.tm_min;
-  buildSecond = dt.tm_sec;
-  i = 1;
-  while (i < argc) {
-    if (argv[i][0] != '-') {
-      numSourceFiles++;
-      if (numSourceFiles == 0)
-        sourceFiles = (char**)malloc(sizeof(char*));
-      else
-        sourceFiles = (char**)realloc(sourceFiles,sizeof(char*)*numSourceFiles);
-      sourceFiles[numSourceFiles-1] = (char*)malloc(strlen(argv[i])+1);
-      strcpy(sourceFiles[numSourceFiles-1], argv[i]);
-      }
-    else processOption(argv[i]);
-    i++;
+
+
+  int main(int argc, char **argv)
+  {
+    int i;
+    time_t tv;
+    struct tm dt;
+    printf("Asm/02 v1.5\n");
+    printf("by Michael H. Riley\n");
+    createLst = 0;
+    outMode = 'R';
+    ramStart = 0x0000;
+    ramEnd = 0xffff;
+    romStart = 0xffff;
+    romEnd = 0xffff;
+    showList = 0;
+    showSymbols = 0;
+    use1805 = 0;
+    useExtended = 0;
+    numSourceFiles = 0;
+    numLabels = 0;
+    numExternals = 0;
+    numIncPath = 0;
+    warn_over = 0;
+    memset(memused, 0, sizeof(memused)); // clear memory used array
+    compMode = 0;                        // NOTE: This appears to never be set (execept here)
+    strcpy(lineEnding, "\n");
+    tv = time(NULL);
+    localtime_r(&tv, &dt);
+    buildMonth = dt.tm_mon + 1;
+    buildDay = dt.tm_mday;
+    buildYear = dt.tm_year + 1900;
+    buildHour = dt.tm_hour;
+    buildMinute = dt.tm_min;
+    buildSecond = dt.tm_sec;
+    i = 1;
+    while (1)
+    {
+      int index = -1, c;
+      c = getopt_long_only(argc, argv, "hI:D:", long_opts, &index);
+      if (c==-1)
+        break;
+      processOption(c, index, optarg);
     }
-  if (numSourceFiles == 0) {
-    printf("No source files specified\n");
-    exit(1);
+  while (optind< argc)
+  {
+    if (numSourceFiles++ == 0)
+      sourceFiles = (char **)malloc(sizeof(char *));
+      else
+        sourceFiles = (char **)realloc(sourceFiles, sizeof(char *) * numSourceFiles);
+      sourceFiles[numSourceFiles - 1] = (char *)malloc(strlen(argv[optind]));
+      strcpy(sourceFiles[numSourceFiles - 1], argv[optind++]);
+  }
+  if (numSourceFiles == 0)
+    {
+      printf("No source files specified\n");
+      exit(1);
     }
   for (i=0; i<numSourceFiles; i++)
-    assembleFile(sourceFiles[i], argc, argv);
-  if (errors > 0) return 1;
+    assembleFile(sourceFiles[i]);
+  if (errors > 0)
+    return 1;
   return 0;
   }
