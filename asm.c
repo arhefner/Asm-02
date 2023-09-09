@@ -2496,6 +2496,7 @@ void assembleFile(char* sourceFile, int argc, char** argv) {
     }
   while (optind< argc)
   {
+    printf("Now processing %s\n", argv[optind]);
     if (numSourceFiles++ == 0)
       sourceFiles = (char **)malloc(sizeof(char *));
       else
