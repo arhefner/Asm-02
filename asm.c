@@ -11,7 +11,11 @@
 
 #include <time.h>
 //moved sys/time.h to header.h
+#ifdef USE_YA_GETOPT
+#include "ya_getopt.h"
+#else
 #include <getopt.h>
+#endif
 
 #include "header.h"
 

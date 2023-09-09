@@ -1,12 +1,12 @@
 PROJECT = asm02
 CC = gcc
-DEFS = -Wall
+DEFS = -Wall -DUSE_YA_GETOPT
 INCS =
 INCDIR =
 LIBS =
 LIBDIR =
 OBJS = \
-	asm.o
+	asm.o ya_getopt.c
 
 $(PROJECT): $(OBJS)
 	$(CC) $(DEFS) $(LIBDIR) $(OBJS) $(LIBS) -o $(PROJECT)
