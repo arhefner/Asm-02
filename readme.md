@@ -30,7 +30,7 @@ such as those found in opcodes.def.
 
 * Labels must end with a colon
 * Preprocessor directives must start in column 1
-* Hex numbers in h such as 0ffh.
+* Hex numbers end in h such as 0ffh.
 * You can't mix PROC/ENDPROC with ORG
 
 ## Directives
