@@ -25,40 +25,40 @@ The original ASM/02 license reads:
 ```
 
 ## Special Features and Usage Notes
-The assembler can produce binary, Intel hex, or a relocatable format for use with [Link/02](https://github.com/rileym65/Link-02). It offers a preprocessor and conditional compilation. There is also a mechamism for defining new instructions
+The assembler can produce binary, Intel hex, or a relocatable format for use with [Link/02](https://github.com/rileym65/Link-02). It offers a preprocessor and conditional compilation. There is also a mechanism for defining new instructions
 such as those found in opcodes.def.
 
 * Labels must end with a colon
 * Preprocessor directives must start in column 1
-* Hex numbers in in h such as 0ffh.
+* Hex numbers in h such as 0ffh.
 * You can't mix PROC/ENDPROC with ORG
 
 ## Directives
 
-.1805        - Enable 1805 mode
-.arch=elf2k  - Set Elf2000 memory model
-.arch=mchi   - Set Membership Card high-RAM memory model
-.arch=mchip  - Set MemberCHIP card memory model
-.arch=mclo   - Set Membership Card low-RAM memory model
-.arch=melf   - Set Micro/Elf memory model
-.arch=pev    - Set Pico/Elf memory model
-.arch=pev2   - Set Pico/Elf V2 memory model
-.align word  - Align address on word boundary (2 bytes)
-.align dword - Align address on double word boundary (4 bytes)
-.align qword - Align address on quad word boundary (8 bytes)
-.align para  - Align address on paragraph boundary (16 bytes)
-.align 32    - Align address on 32-byte boundary
-.align 64    - Align address on 64-byte boundary
-.align 128   - Align address on 128-byte boundary
-.align page  - Align address on page boundary (256 bytes)
-.binary      - Output as binary
-.intel       - Output as Intel hex
-.list        - Enable show list
-.rcs         - Output as Rcs hex
-.sym         - Show symbols
-.link line   - Pass 'line' to linker
-.suppress    - Suppress further byte output
-.op "opcode","arglist","translation" (see examples, below)
+* .1805        - Enable 1805 mode
+* .arch=elf2k  - Set Elf2000 memory model
+* .arch=mchi   - Set Membership Card high-RAM memory model
+* .arch=mchip  - Set MemberCHIP card memory model
+* .arch=mclo   - Set Membership Card low-RAM memory model
+* .arch=melf   - Set Micro/Elf memory model
+* .arch=pev    - Set Pico/Elf memory model
+* .arch=pev2   - Set Pico/Elf V2 memory model
+* .align word  - Align address on word boundary (2 bytes)
+* .align dword - Align address on double word boundary (4 bytes)
+* .align qword - Align address on quad word boundary (8 bytes)
+* .align para  - Align address on paragraph boundary (16 bytes)
+* .align 32    - Align address on 32-byte boundary
+* .align 64    - Align address on 64-byte boundary
+* .align 128   - Align address on 128-byte boundary
+* .align page  - Align address on page boundary (256 bytes)
+* .binary      - Output as binary
+* .intel       - Output as Intel hex
+* .list        - Enable show list
+* .rcs         - Output as Rcs hex
+* .sym         - Show symbols
+* .link line   - Pass 'line' to linker
+* .suppress    - Suppress further byte output
+* .op "opcode","arglist","translation" (see examples, below)
 
 ### Arglist:
 
@@ -86,7 +86,6 @@ such as those found in opcodes.def.
   * -Ipath        - Add path to search list for #include files
   * -l, -showlist - Show assembly list
   * -L, -list     - Create .lst file
-  * -warnover     - Treat overwriting an address (in binary or Intel mode) as a warning (normally an error)
   * -s, -symbols  - Show symbols
   * -melf         - Set Micro/Elf memory model
   * -pev          - Set Pico/Elf memory model
