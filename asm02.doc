@@ -40,15 +40,16 @@
 
 Command line switches:
   -1805         - Enable 1805 mode
-  -b            - Output in binary
+  -b, -binary   - Output in binary
   -Dname        - Define name with value of "1"
   -Dname=value  - Define name with specified value
-  -r            - Output in RCS hex
-  -i            - Output in Intel hex
+  -r, -reloc    - Output in RCS hex
+  -i, -intel     - Output in Intel hex
   -Ipath        - Add path to search list for #include files
-  -l            - Show assembly list
-  -L            - Create .lst file
-  -s            - Show symbols
+  -l, -showlist - Show assembly list
+  -L, -list     - Create .lst file
+  -warnover     - Treat overwriting an address (in binary or Intel mode) as a warning (normally an error)
+  -s, -symbols  - Show symbols
   -melf         - Set Micro/Elf memory model
   -pev          - Set Pico/Elf memory model
   -pev2         - Set Pico/Elf V2 memory model
@@ -60,6 +61,11 @@ Command line switches:
   -max          - Set 1802/MAX memory model
   -ram=low-high - Set explicit RAM region
   -rom=how-high - Set explicit ROM region
+  -cr           - Use CR as line ending
+  -lf           - Use LF as line ending
+  -crlf         - Use CRLF as line ending
+  -lfcr         - Use LFCR as line ending
+  -help, -h     - List of options
 
 Evaluator variables:
 [month]         - Build month

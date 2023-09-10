@@ -10,8 +10,6 @@
 #define MAIN
 
 #include <time.h>
-// moved sys/time.h to header.h
-
 #include "header.h"
 
 typedef struct
@@ -2631,152 +2629,187 @@ void processROM(char *buffer)
   romEnd = getHex(buffer);
 }
 
-void processOption(char *option)
+#define LF_ARG 0x80
+#define CR_ARG 0x81
+#define CRLF_ARG 0x82
+#define LFCR_ARG 0x83
+#define MELF_ARG 0x84
+#define PEV_ARG 0x85
+#define PEV2_ARG 0x86
+#define ELF2K_ARG 0x87
+#define MCLO_ARG 0x88
+#define MCHI_ARG 0x89
+#define MCHIP_ARG 0x8A
+
+void help()
+{
+  fprintf(stderr, "%s",
+          "-1805         - Enable 1805 mode\n"
+          "-b,-binary    - Output in binary\n"
+          "-Dname        - Define name with value of '1'\n"
+          "-Dname=value  - Define name with specified value\n"
+          "-r,-reloc     - Output in RCS hex\n"
+          "-i,-intel     - Output in Intel hex\n"
+          "-Ipath        - Add path to search list for #include files\n"
+          "-l,-showlist  - Show assembly list\n"
+          "-L,-list      - Create .lst file\n"
+          "-s,-symbols   - Show symbols\n"
+          "-map          - Show memory map in binary or intel mode\n"
+          "-melf         - Set Micro/Elf memory model\n"
+          "-pev          - Set Pico/Elf memory model\n"
+          "-pev2         - Set Pico/Elf V2 memory model\n"
+          "-elf2k        - Set Elf2000 memory model\n"
+          "-mclo         - Set Membership Card low RAM memory model\n"
+          "-mchi         - Set Membership Card high RAM memory model\n"
+          "-mchip        - Set MemberChip Card memory model\n"
+          "-mini         - Set 1802/Mini memory model\n"
+          "-max          - Set 1802/MAX memory model\n"
+          "-ram=low-high - Set explicit RAM region\n"
+          "-rom=how-high - Set explicit ROM region\n"
+          "-h,-help      - This message\n");
+}
+
+struct option long_opts[] =
+    {
+        { "1805", no_argument, &use1805, -1 },
+        { "binary", no_argument, &outMode, 'B' },
+        { "b", no_argument, &outMode, 'B' },
+        { "intel", no_argument, &outMode, 'I' },
+        { "i", no_argument, &outMode, 'I' },
+        { "reloc", no_argument, &outMode, 'R' },
+        { "r", no_argument, &outMode, 'R' },
+        { "showlist", no_argument, &showList, -1 },
+        { "l", no_argument, &showList, -1 },
+        { "list", no_argument, &createLst, -1 },
+        { "L", no_argument, &createLst, -1 },
+        { "symbols", no_argument, &showSymbols, -1 },
+        { "s", no_argument, &showSymbols, -1 },
+        { "map", no_argument, &showMap, -1 },
+        { "m", no_argument, &showMap, -1 },
+        { "lf", no_argument, 0, LF_ARG },
+        { "cr", no_argument, 0, CR_ARG },
+        { "crlf", no_argument, 0, CRLF_ARG },
+        { "lfcr", no_argument, 0, LFCR_ARG },
+        { "melf", no_argument, 0, MELF_ARG },
+        { "pev", no_argument, 0, PEV_ARG },
+        { "pev2", no_argument, 0, PEV2_ARG },
+        { "elf2k", no_argument, 0, ELF2K_ARG },
+        { "mclo", no_argument, 0, MCLO_ARG },
+        { "mchi", no_argument, 0, MCHI_ARG },
+        { "mchip", no_argument, 0, MCHIP_ARG },
+        { "mini", no_argument, 0, MINI_ARG },
+        { "max", no_argument, 0, MAX_ARG },
+        { "ram", required_argument, 0, 'R' },
+        { "rom", required_argument, 0, 'M' },
+        { "help", no_argument, 0, 'h' },
+        { 0, 0, 0, 0 }};
+
+void processOption(int c, int index, char *option)
 {
   char def[256];
   char *equals;
-  if (strcmp(option, "-1805") == 0)
-    use1805 = -1;
-  else if (strcmp(option, "-b") == 0)
-    outMode = 'B';
-  else if (strcmp(option, "-i") == 0)
-    outMode = 'I';
-  else if (strcmp(option, "-r") == 0)
-    outMode = 'R';
-  else if (strcmp(option, "-l") == 0)
-    showList = -1;
-  else if (strcmp(option, "-L") == 0)
-    createLst = -1;
-  else if (strcmp(option, "-s") == 0)
-    showSymbols = -1;
-  else if (strcmp(option, "-e") == 0)
-    useExtended = -1;
-  else if (strcmp(option, "-lf") == 0)
-    strcpy(lineEnding, "\n");
-  else if (strcmp(option, "-cr") == 0)
-    strcpy(lineEnding, "\r");
-  else if (strcmp(option, "-crlf") == 0)
-    strcpy(lineEnding, "\r\n");
-  else if (strcmp(option, "-lfcr") == 0)
-    strcpy(lineEnding, "\n\r");
-  else if (strncmp(option, "-D", 2) == 0)
-  {
-    option += 2;
-    strcpy(def, option);
-    equals = strchr(def, '=');
-    numClDefines++;
-    if (numClDefines == 1)
-    {
-      clDefines = (char **)malloc(sizeof(char *));
-      clDefineValues = (char **)malloc(sizeof(char *));
-    }
-    else
-    {
-      clDefines = (char **)realloc(clDefines, sizeof(char *) * numClDefines);
-      clDefineValues = (char **)realloc(clDefineValues, sizeof(char *) * numClDefines);
-    }
-    if (equals != NULL)
-    {
-      *equals = 0;
-      equals++;
-      clDefines[numClDefines - 1] = (char *)malloc(strlen(def) + 1);
-      clDefineValues[numClDefines - 1] = (char *)malloc(strlen(equals) + 1);
-      strcpy(clDefines[numClDefines - 1], def);
-      strcpy(clDefineValues[numClDefines - 1], equals);
-    }
-    else
-    {
-      clDefines[numClDefines - 1] = (char *)malloc(strlen(option) + 1);
-      clDefineValues[numClDefines - 1] = (char *)malloc(2);
-      strcpy(clDefines[numClDefines - 1], option);
-      strcpy(clDefineValues[numClDefines - 1], "1");
-    }
-  }
-  else if (strncmp(option, "-I", 2) == 0)
-  {
-    option += 2;
-    numIncPath++;
-    if (numIncPath == 1)
-      incPath = (char **)malloc(sizeof(char *));
-    else
-      incPath = (char **)realloc(incPath, sizeof(char *) * numIncPath);
-    incPath[numIncPath - 1] = (char *)malloc(strlen(option) + 1);
-    strcpy(incPath[numIncPath - 1], option);
-  }
-  else if (strcmp(option, "-melf") == 0)
-  {
-    ramStart = 0x0000;
-    ramEnd = 0x7fff;
-    romStart = 0x8000;
-    romEnd = 0xffff;
-  }
-  else if (strcmp(option, "-pev") == 0)
-  {
-    ramStart = 0x0000;
-    ramEnd = 0x7fff;
-    romStart = 0x8000;
-    romEnd = 0xffff;
-  }
-  else if (strcmp(option, "-pev2") == 0)
-  {
-    ramStart = 0x0000;
-    ramEnd = 0x7fff;
-    romStart = 0x8000;
-    romEnd = 0xffff;
-  }
-  else if (strcmp(option, "-elf2k") == 0)
-  {
-    ramStart = 0x0000;
-    ramEnd = 0x7fff;
-    romStart = 0x8000;
-    romEnd = 0xffff;
-  }
-  else if (strcmp(option, "-mclo") == 0)
-  {
-    ramStart = 0x0000;
-    ramEnd = 0x7fff;
-    romStart = 0x8000;
-    romEnd = 0xffff;
-  }
-  else if (strcmp(option, "-mchi") == 0)
-  {
-    ramStart = 0x8000;
-    ramEnd = 0xffff;
-    romStart = 0x0000;
-    romEnd = 0x7fff;
-  }
-  else if (strcmp(option, "-mchip") == 0)
-  {
-    ramStart = 0x8000;
-    ramEnd = 0xffff;
-    romStart = 0x0000;
-    romEnd = 0x7fff;
-  }
-  else if (strcmp(option, "-mini") == 0)
-  {
+
+  switch (c) {
+  case 'h':
+    help();
+    exit(1);
+    break;
+
+  case LF_ARG:
+    strcpy(lineEnding,"\n");
+    break;
+  case CR_ARG:
+    strcpy(lineEnding,"\r");
+    break;
+  case CRLF_ARG:
+    strcpy(lineEnding,"\r\n");
+    break;
+  case LFCR_ARG:
+    strcpy(lineEnding,"\n\r");
+    break;
+  case 'D':
+      strcpy(def, option);
+      equals = strchr(def, '=');
+      numClDefines++;
+      if (numClDefines == 1)
+      {
+        clDefines = (char **)malloc(sizeof(char *));
+        clDefineValues = (char **)malloc(sizeof(char *));
+      }
+      else
+      {
+        clDefines = (char **)realloc(clDefines, sizeof(char *) * numClDefines);
+        clDefineValues =
+            (char **)realloc(clDefineValues, sizeof(char *) * numClDefines);
+      }
+      if (equals != NULL)
+      {
+        *equals = 0;
+        equals++;
+        clDefines[numClDefines - 1] = (char *)malloc(strlen(def) + 1);
+        clDefineValues[numClDefines - 1] = (char *)malloc(strlen(equals) + 1);
+        strcpy(clDefines[numClDefines - 1], def);
+        strcpy(clDefineValues[numClDefines - 1], equals);
+      }
+      else
+      {
+        clDefines[numClDefines - 1] = (char *)malloc(strlen(option) + 1);
+        clDefineValues[numClDefines - 1] = (char *)malloc(2);
+        strcpy(clDefines[numClDefines - 1], option);
+        strcpy(clDefineValues[numClDefines - 1], "1");
+      }
+
+    break;
+  case 'I':
+      numIncPath++;
+      if (numIncPath == 1)
+        incPath = (char **)malloc(sizeof(char *));
+      else
+        incPath = (char **)realloc(incPath, sizeof(char *) * numIncPath);
+      incPath[numIncPath - 1] = (char *)malloc(strlen(option) + 1);
+      strcpy(incPath[numIncPath - 1], option);
+      return;
+    break;
+  case 'R':
+    processRAM(option);
+    break;
+  case 'M':
+    processROM(option);
+    break;
+  case MELF_ARG:
+  case PEV_ARG:
+  case PEV2_ARG:
+  case ELF2K_ARG:
+  case MCLO_ARG:
+    ramStart=0;
+    ramEnd=0x7fff;
+    romStart=0x8000;
+    romEnd=0xFFFF;
+    break;
+  case MCHI_ARG:
+  case MCHIP_ARG:
+    ramStart=0x8000;
+    ramEnd=0xffff;
+    romStart=0;
+    romEnd=0x7fff;
+    break;
+  case MINI_ARG:
     ramStart = 0x0000;
     ramEnd = 0xf7ff;
     romStart = 0xf800;
     romEnd = 0xffff;
-  }
-  else if (strcmp(option, "-max") == 0)
-  {
+    break;
+  case MAX_ARG:
     ramStart = 0x0000;
     ramEnd = 0xefff;
     romStart = 0xf000;
     romEnd = 0xffff;
+    break;
   }
-  else if (strcmp(option, "-map") == 0)
-  {
-    showMap = true;
-  }
-  else if (strncmp(option, "-ram=", 5) == 0)
-    processRAM(option + 5);
-  else if (strncmp(option, "-rom=", 5) == 0)
-    processROM(option + 5);
 }
 
-int pass(int p, char *srcFile)
+
+int pass(int p, char* srcFile)
 {
   int i;
   char buffer[256];
@@ -2907,7 +2940,7 @@ void clear()
   addLabel("rf", 15);
 }
 
-void assembleFile(char *sourceFile, int argc, char **argv)
+void assembleFile(char *sourceFile)
 {
   int i;
   char tmp[1024];
@@ -3025,7 +3058,7 @@ int main(int argc, char **argv)
   int i;
   time_t tv;
   struct tm dt;
-  printf("Asm/02 v1.6\n");
+  printf("Asm/02 v1.5\n");
   printf("by Michael H. Riley\n");
   createLst = 0;
   outMode = 'R';
@@ -3044,6 +3077,8 @@ int main(int argc, char **argv)
   numLabels = 0;
   numExternals = 0;
   numIncPath = 0;
+  warn_over = 0;
+  memset(memused, 0, sizeof(memused)); // clear memory used array
   strcpy(lineEnding, "\n");
   tv = time(NULL);
   localtime_r(&tv, &dt);
@@ -3054,28 +3089,31 @@ int main(int argc, char **argv)
   buildMinute = dt.tm_min;
   buildSecond = dt.tm_sec;
   i = 1;
-  while (i < argc)
+  while (1)
   {
-    if (argv[i][0] != '-')
-    {
-      numSourceFiles++;
-      if (numSourceFiles == 0)
-        sourceFiles = (char **)malloc(sizeof(char *));
-      else
-        sourceFiles = (char **)realloc(sourceFiles, sizeof(char *) * numSourceFiles);
-      sourceFiles[numSourceFiles - 1] = (char *)malloc(strlen(argv[i]) + 1);
-      strcpy(sourceFiles[numSourceFiles - 1], argv[i]);
-    }
-    else
-      processOption(argv[i]);
-    i++;
+    int index = -1, c;
+    c = getopt_long_only(argc, argv, "hI:D:", long_opts, &index);
+    if (c==-1)
+      break;
+    processOption(c, index, optarg);
   }
+  
+  while (optind< argc)
+  {
+    if (numSourceFiles++ == 0)
+      sourceFiles = (char **)malloc(sizeof(char *));
+    else
+      sourceFiles = (char **)realloc(sourceFiles, sizeof(char *) * numSourceFiles);
+    sourceFiles[numSourceFiles - 1] = (char *)malloc(strlen(argv[optind]));
+    strcpy(sourceFiles[numSourceFiles - 1], argv[optind++]);
+  }
+  
   if (numSourceFiles == 0)
   {
-    fprintf(stderr, "%s\n", "No source files specified");
+    printf("No source files specified\n");
     exit(1);
   }
-
+  
   if (!mmapInit())
   {
     fprintf(stderr, "%s\n", "Insufficient memory for overwrite checking.");
@@ -3096,8 +3134,8 @@ int main(int argc, char **argv)
   else
     memory = NULL;
 
-  for (i = 0; i < numSourceFiles; i++)
-    assembleFile(sourceFiles[i], argc, argv);
+  for (i=0; i<numSourceFiles; i++)
+    assembleFile(sourceFiles[i]);
 
   if (errors > 0)
     return 1;
