@@ -6,7 +6,7 @@ INCDIR =
 LIBS =
 LIBDIR =
 OBJS = \
-	asm.o ya_getopt.o
+	asm.o ya_getopt.o mmap.o
 
 $(PROJECT): $(OBJS)
 	$(CC) $(DEFS) $(LIBDIR) $(OBJS) $(LIBS) -o $(PROJECT)
@@ -22,4 +22,7 @@ install:
 	cp asm02 /usr/local/bin/
 	chmod a+rx /usr/local/bin/asm02
 
-asm.o:           header.h asm.c ya_getopt.c ya_getopt.h
+asm.o:           header.h asm.c
+ya_getopt.o:     ya_getopt.h ya_getopt.c
+mmap.o:          mmap.h mmap.c
+

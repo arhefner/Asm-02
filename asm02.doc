@@ -6,6 +6,8 @@
 .arch=melf   - Set Micro/Elf memory model
 .arch=pev    - Set Pico/Elf memory model
 .arch=pev2   - Set Pico/Elf V2 memory model
+.arch=mini   - Set 1802/Mini memory model
+.arch=max    - Set 1802/MAX memory model
 .align word  - Align address on word boundary (2 bytes)
 .align dword - Align address on double word boundary (4 bytes)
 .align qword - Align address on quad word boundary (8 bytes)
@@ -55,6 +57,8 @@ Command line switches:
   -mclo         - Set Membership Card low RAM memory model
   -mchi         - Set Membership Card high RAM memory model
   -mchip        - Set MemberChip Card memory model
+  -mini         - Set 1802/Mini memory model
+  -max          - Set 1802/MAX memory model
   -ram=low-high - Set explicit RAM region
   -rom=how-high - Set explicit ROM region
   -cr           - Use CR as line ending
@@ -113,4 +117,3 @@ Sample opcode macros:
 .op "SUB16","NW","8$1 FF L2 A$1 9$1 7F H2 B$1"
 .op "CLC","","fc 00"
 .op "STC","","ff 00"
-
