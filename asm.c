@@ -3114,7 +3114,11 @@ int main(int argc, char **argv)
     exit(1);
   }
 
-  if (!mmapInit())
+  if (outMode == 'R')
+  {
+    checkOverwrite = false;
+  }
+  else if (!mmapInit())
   {
     fprintf(stderr, "%s\n", "Insufficient memory for overwrite checking.");
     checkOverwrite = false;
