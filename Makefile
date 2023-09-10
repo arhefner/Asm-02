@@ -1,12 +1,12 @@
 PROJECT = asm02
 CC = gcc
-DEFS = -Wall
+DEFS = -Wall -DUSE_YA_GETOPT
 INCS =
 INCDIR =
 LIBS =
 LIBDIR =
 OBJS = \
-	asm.o
+	asm.o ya_getopt.o mmap.o
 
 $(PROJECT): $(OBJS)
 	$(CC) $(DEFS) $(LIBDIR) $(OBJS) $(LIBS) -o $(PROJECT)
@@ -21,5 +21,3 @@ clean:
 install:
 	cp asm02 /usr/local/bin/
 	chmod a+rx /usr/local/bin/asm02
-
-asm.o:           header.h asm.c
