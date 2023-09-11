@@ -92,11 +92,12 @@ $F7
 * -Dname        - Define name with value of "1"
 * -Dname=value  - Define name with specified value
 * -r, -reloc    - Output in RCS hex
-* -i, -intel     - Output in Intel hex
+* -i, -intel    - Output in Intel hex
 * -Ipath        - Add path to search list for #include files
 * -l, -showlist - Show assembly list
 * -L, -list     - Create .lst file
 * -s, -symbols  - Show symbols
+* -m, -map      - Show memory map in binary/hex mode
 * -melf         - Set Micro/Elf memory model
 * -pev          - Set Pico/Elf memory model
 * -pev2         - Set Pico/Elf V2 memory model
