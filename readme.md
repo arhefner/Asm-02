@@ -6,7 +6,6 @@ This is an update to Mike Riley's ASM/02 cross compiler for the 1802 running on 
 ## Original Repo
 https://github.com/rileym65/Asm-02
 
-
 ## Options and License
 
 This code can use ya_getopt https://github.com/kubo/ya_getopt which is provided under a 2-clause BSD-style license.
@@ -25,7 +24,8 @@ The original ASM/02 license reads:
 ```
 
 ## Special Features and Usage Notes
-The assembler can produce binary, Intel hex, or a relocatable format for use with [Link/02](https://github.com/rileym65/Link-02). It offers a preprocessor and conditional compilation. There is also a mechanism for defining new instructions
+The assembler can produce binary, Intel hex, or a relocatable format for use with [Link/02](https://github.com/arhefner/Link-02).
+It offers a preprocessor and conditional compilation. There is also a mechanism for defining new instructions
 such as those found in opcodes.def.
 
 * Labels must end with a colon
@@ -43,6 +43,8 @@ such as those found in opcodes.def.
 * .arch=melf   - Set Micro/Elf memory model
 * .arch=pev    - Set Pico/Elf memory model
 * .arch=pev2   - Set Pico/Elf V2 memory model
+* .arch=mini   - Set 1802/Mini memory model
+* .arch=max    - Set 1802/MAX memory model
 * .align word  - Align address on word boundary (2 bytes)
 * .align dword - Align address on double word boundary (4 bytes)
 * .align qword - Align address on quad word boundary (8 bytes)
@@ -77,30 +79,32 @@ such as those found in opcodes.def.
 *  Wn  - Output the two bytes of word argument n
 
 ## Command line switches
-  * -1805         - Enable 1805 mode
-  * -b, -binary   - Output in binary
-  * -Dname        - Define name with value of "1"
-  * -Dname=value  - Define name with specified value
-  * -r, -reloc    - Output in RCS hex
-  * -i, -intel     - Output in Intel hex
-  * -Ipath        - Add path to search list for #include files
-  * -l, -showlist - Show assembly list
-  * -L, -list     - Create .lst file
-  * -s, -symbols  - Show symbols
-  * -melf         - Set Micro/Elf memory model
-  * -pev          - Set Pico/Elf memory model
-  * -pev2         - Set Pico/Elf V2 memory model
-  * -elf2k        - Set Elf2000 memory model
-  * -mclo         - Set Membership Card low RAM memory model
-  * -mchi         - Set Membership Card high RAM memory model
-  * -mchip        - Set MemberChip Card memory model
-  * -ram=low-high - Set explicit RAM region
-  * -rom=how-high - Set explicit ROM region
-  * -cr           - Use CR as line ending
-  * -lf           - Use LF as line ending
-  * -crlf         - Use CRLF as line ending
-  * -lfcr         - Use LFCR as line ending
-  * -help, -h     - List of options
+* -1805         - Enable 1805 mode
+* -b, -binary   - Output in binary
+* -Dname        - Define name with value of "1"
+* -Dname=value  - Define name with specified value
+* -r, -reloc    - Output in RCS hex
+* -i, -intel     - Output in Intel hex
+* -Ipath        - Add path to search list for #include files
+* -l, -showlist - Show assembly list
+* -L, -list     - Create .lst file
+* -s, -symbols  - Show symbols
+* -melf         - Set Micro/Elf memory model
+* -pev          - Set Pico/Elf memory model
+* -pev2         - Set Pico/Elf V2 memory model
+* -elf2k        - Set Elf2000 memory model
+* -mclo         - Set Membership Card low RAM memory model
+* -mchi         - Set Membership Card high RAM memory model
+* -mchip        - Set MemberChip Card memory model
+* -mini         - Set 1802/Mini memory model
+* -max          - Set 1802/MAX memory model
+* -ram=low-high - Set explicit RAM region
+* -rom=how-high - Set explicit ROM region
+* -cr           - Use CR as line ending
+* -lf           - Use LF as line ending
+* -crlf         - Use CRLF as line ending
+* -lfcr         - Use LFCR as line ending
+* -help, -h     - List of options
 
 ## Evaluator variables
 * [month]         - Build month
@@ -112,15 +116,15 @@ such as those found in opcodes.def.
 * [build]         - Build number
 
 ## Preprocessor
-*   #include filename
-*   #define symbol value
-*   #undef symbol
-*   #if expr
-*   #ifdef symbol
-*   #ifndef symbol
-*   #else
-*   #endif
-*   #error text
+* #include filename
+* #define symbol value
+* #undef symbol
+* #if expr
+* #ifdef symbol
+* #ifndef symbol
+* #else
+* #endif
+* #error text
 
 ## Pseudo ops
 * extrn label   - Define external label
@@ -133,10 +137,10 @@ such as those found in opcodes.def.
 * equ expr      - Set label to value
 * org expr      - Set assembly address
 * proc label    - Begin relocatable procedure
-*   endp          - End of relocatable procedure
-*   ver           - Build standard Elf/OS VER header
-*   ever          - Build extended Elf/OS VER header
-*   eever         - Build enhanced Elf/OS VER header
+* endp          - End of relocatable procedure
+* ver           - Build standard Elf/OS VER header
+* ever          - Build extended Elf/OS VER header
+* eever         - Build enhanced Elf/OS VER header
   
 ## Sample opcode macros
 ```
