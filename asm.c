@@ -678,7 +678,7 @@ void output(byte value)
     {
       if (suppression == 0)
       {
-        if (checkOverwrite && !mmapCheck(address))
+        if (checkOverwrite && compMode != 'P' && !mmapCheck(address))
         {
           doError(ERR_MEMORY_OVERLAP, address);
         }
@@ -2475,6 +2475,7 @@ void Asm(char *line)
         break;
       case OT_PROC:
         inProc = -1;
+        setCompMode();
         strcpy(module, args);
         if (passNumber == 2 && outCount > 0)
         {
@@ -2528,6 +2529,7 @@ void Asm(char *line)
           write(outFile, buffer, strlen(buffer));
         }
         inProc = 0;
+        setCompMode();
         strcpy(module, "*");
         break;
       case OT_VER:
