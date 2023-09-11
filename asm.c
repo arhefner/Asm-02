@@ -3104,7 +3104,7 @@ int main(int argc, char **argv)
   {
     numSourceFiles++;
     sourceFiles = (char **)realloc(sourceFiles, sizeof(char *) * numSourceFiles);
-    sourceFiles[numSourceFiles - 1] = (char *)malloc(strlen(argv[optind]));
+    sourceFiles[numSourceFiles - 1] = (char *)malloc(strlen(argv[optind])+1);
     strcpy(sourceFiles[numSourceFiles - 1], argv[optind++]);
   }
 
