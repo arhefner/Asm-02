@@ -213,10 +213,10 @@ LINK int    use1805;
 LINK byte   useAsm;
 LINK byte   useExtended;
 LINK bool   memovf;
-LINK bool   showMap;
+LINK int    showMap;
 LINK bool   checkOverwrite;
 LINK FILE  *sourceFile[100];
-LINK int   lineNumber[100];
-LINK int   fileNumber;
+LINK int    lineNumber[100];
+LINK int    fileNumber;
 
 #endif
