@@ -8,17 +8,23 @@
 #include <fcntl.h>
 #include <stdbool.h>
 #include "mmap.h"
-#include "ya_getopt.h"
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <io.h>
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
 #define localtime_r(X, Y) (localtime_s(Y, X))
+#define USE_YA_GETOPT
 #else
 #include <unistd.h>
 #include <sys/time.h>
 #define O_BINARY 0
+#endif
+
+#ifdef USE_YA_GETOPT
+#include "ya_getopt.h"
+#else
+#include <getopt.h>
 #endif
 
 #ifdef MAIN

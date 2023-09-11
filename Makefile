@@ -1,12 +1,21 @@
+GETOPT := getopt
+
 PROJECT = asm02
 CC = gcc
-DEFS = -Wall -DUSE_YA_GETOPT
+DEFS = -Wall
 INCS =
 INCDIR =
 LIBS =
 LIBDIR =
 OBJS = \
-	asm.o ya_getopt.o mmap.o
+	asm.o mmap.o
+
+ifeq ($(GETOPT),ya_getopt)
+  DEFS += -DUSE_YA_GETOPT
+  OBJS += ya_getopt.o
+else ifneq ($(GETOPT),getopt)
+  $(error GETOPT must be getopt or ya_getopt)
+endif
 
 $(PROJECT): $(OBJS)
 	$(CC) $(DEFS) $(LIBDIR) $(OBJS) $(LIBS) -o $(PROJECT)

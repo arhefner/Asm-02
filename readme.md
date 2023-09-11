@@ -8,10 +8,6 @@ https://github.com/rileym65/Asm-02
 
 ## Options and License
 
-This code can use ya_getopt https://github.com/kubo/ya_getopt which is provided under a 2-clause BSD-style license.
-If you are compiling under Linux, you can stop defining USE_YA_GETOPT in the Makefile and use the normal system
-getopt which is assumed to be the GNU getopt.
-
 The original ASM/02 license reads:
 ```
  *******************************************************************
@@ -22,6 +18,12 @@ The original ASM/02 license reads:
  *** without express written permission from the author.         ***
  *******************************************************************
 ```
+This code can use ya_getopt (https://github.com/kubo/ya_getopt), which is provided under a 2-clause BSD-style license.
+If you are compiling under Linux, you can set the GETOPT variable to 'ya_getopt' to use this instead of the standard getopt library, like so:
+
+```
+make GETOPT=ya_getopt
+```
 
 ## Special Features and Usage Notes
 The assembler can produce binary, Intel hex, or a relocatable format for use with [Link/02](https://github.com/arhefner/Link-02).
@@ -29,9 +31,15 @@ It offers a preprocessor and conditional compilation. There is also a mechanism 
 such as those found in opcodes.def.
 
 * Labels must end with a colon
-* Preprocessor directives must start in column 1
-* Hex numbers end in h such as 0ffh.
-* You can't mix PROC/ENDPROC with ORG
+* Hex numbers may be specified with an 'h' suffix, or a '$' prefix. When using the 'h' suffix, the number must start with a digit from 0-9.  
+Examples:
+```
+12h
+$12
+0f7h
+$F7
+```
+* You can't use ORG to specify an absolute address within a PROC/ENDPROC.
 
 ## Directives
 
