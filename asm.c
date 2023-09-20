@@ -325,6 +325,7 @@ void doError(int msgno, ...)
   case WARNING:
     severity = "!WARNING";
     msg = wmessages[MSG_INDEX(msgno)];
+    warnings++;
     break;
   default:
     return;
@@ -2930,6 +2931,7 @@ void assembleFile(char *sourceFile)
   defineValues = NULL;
   numDefines = 0;
   errors = 0;
+  warnings = 0;
   ops = NULL;
   arglist = NULL;
   translation = NULL;
@@ -3011,6 +3013,7 @@ void assembleFile(char *sourceFile)
   printf("\n");
   printf("Lines Assembled   : %d\n", linesAssembled);
   printf("Code Generated    : %d\n", codeGenerated);
+  printf("Warnings            : %d\n", warnings);
   printf("Errors            : %d\n", errors);
   printf("\n");
 
