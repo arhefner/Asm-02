@@ -1516,12 +1516,29 @@ void delDefine(char *define)
   }
 }
 
-void defReplace(char *line)
+/*
+You would like to handle cases like:
+#define MYREG R1
+#define IREG MYREG
+
+But without tracking which #define has already "fired" you run the risk of 
+an endless loop with something like:
+
+#define JUMP JUMP+1
+
+This counter stops rescanning after the indicated number of times
+ */
+#define MAXDEFINERECURSE 5
+
+int defReplaceEng(char *line,unsigned recurselevel)
 {
   char buffer[1024];
   char *pchar;
   byte flag;
   int i;
+  int rv=0;  // 0 means no changes
+  if (recurselevel>MAXDEFINERECURSE) return 0;
+  
   for (i = 0; i < numDefines; i++)
   {
     flag = 0xff;
@@ -1540,10 +1557,23 @@ void defReplace(char *line)
         strcat(buffer, defineValues[i]);
         strcat(buffer, pchar + strlen(defines[i]));
         strcpy(line, buffer);
+	flag=0;
+	rv=1;
       }
     }
   }
+  if (rv!=0)
+    {
+      rv=defReplaceEng(line,++recurselevel);
+    }
+  return rv;
 }
+
+void  defReplace(char *line)
+{
+  defReplaceEng(line,0);
+}
+
 
 char *nextLine(char *line)
 {
