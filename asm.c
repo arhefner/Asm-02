@@ -325,6 +325,7 @@ void doError(int msgno, ...)
   case WARNING:
     severity = "!WARNING";
     msg = wmessages[MSG_INDEX(msgno)];
+    warnings++;
     break;
   default:
     return;
@@ -1515,12 +1516,29 @@ void delDefine(char *define)
   }
 }
 
-void defReplace(char *line)
+/*
+You would like to handle cases like:
+#define MYREG R1
+#define IREG MYREG
+
+But without tracking which #define has already "fired" you run the risk of 
+an endless loop with something like:
+
+#define JUMP JUMP+1
+
+This counter stops rescanning after the indicated number of times
+ */
+#define MAXDEFINERECURSE 5
+
+int defReplaceEng(char *line,unsigned recurselevel)
 {
   char buffer[1024];
   char *pchar;
   byte flag;
   int i;
+  int rv=0;  // 0 means no changes
+  if (recurselevel>MAXDEFINERECURSE) return 0;
+  
   for (i = 0; i < numDefines; i++)
   {
     flag = 0xff;
@@ -1539,10 +1557,23 @@ void defReplace(char *line)
         strcat(buffer, defineValues[i]);
         strcat(buffer, pchar + strlen(defines[i]));
         strcpy(line, buffer);
+	flag=0;
+	rv=1;
       }
     }
   }
+  if (rv!=0)
+    {
+      rv=defReplaceEng(line,++recurselevel);
+    }
+  return rv;
 }
+
+void  defReplace(char *line)
+{
+  defReplaceEng(line,0);
+}
+
 
 char *nextLine(char *line)
 {
@@ -2869,7 +2900,8 @@ int pass(int p, char* srcFile)
   return 0;
 }
 
-void clear()
+// Free all the label data
+void freelabels()
 {
   int i;
   if (numLabels != 0)
@@ -2894,6 +2926,11 @@ void clear()
     externals = NULL;
     numExternals = 0;
   }
+}
+
+void clear()
+{
+  freelabels();
   execAddr = 0xffff;
   strcpy(module, " ");
   addLabel("r0", 0);
@@ -2930,6 +2967,7 @@ void assembleFile(char *sourceFile)
   defineValues = NULL;
   numDefines = 0;
   errors = 0;
+  warnings = 0;
   ops = NULL;
   arglist = NULL;
   translation = NULL;
@@ -3011,6 +3049,7 @@ void assembleFile(char *sourceFile)
   printf("\n");
   printf("Lines Assembled   : %d\n", linesAssembled);
   printf("Code Generated    : %d\n", codeGenerated);
+  printf("Warnings            : %d\n", warnings);
   printf("Errors            : %d\n", errors);
   printf("\n");
 
@@ -3031,20 +3070,9 @@ void assembleFile(char *sourceFile)
     mmapPrint();
   }
 
-  if (numLabels > 0)
-  {
-    for (i = 0; i < numLabels; i++)
-    {
-      free(labels[i]);
-      free(labelProcs[i]);
-    }
-    free(labels);
-    free(labelValues);
-    free(labelProcs);
-  }
+  freelabels();
   if (errors > 0)
     exit(1);
-  numLabels = 0;
 }
 
 int main(int argc, char **argv)
@@ -3131,7 +3159,7 @@ int main(int argc, char **argv)
     memory = NULL;
 
   for (i=0; i<numSourceFiles; i++)
-    assembleFile(sourceFiles[i]);
+         assembleFile(sourceFiles[i]);
 
   if (errors > 0)
     return 1;

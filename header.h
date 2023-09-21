@@ -185,6 +185,7 @@ LINK word   codeGenerated;
 LINK char   compMode;
 LINK int    createLst;
 LINK int    errors;
+LINK int    warnings;
 LINK word   execAddr;
 LINK word   highest;
 LINK word   highAddress;
