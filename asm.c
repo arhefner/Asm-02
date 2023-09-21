@@ -2870,7 +2870,8 @@ int pass(int p, char* srcFile)
   return 0;
 }
 
-void clear()
+// Free all the label data
+void freelabels()
 {
   int i;
   if (numLabels != 0)
@@ -2895,6 +2896,11 @@ void clear()
     externals = NULL;
     numExternals = 0;
   }
+}
+
+void clear()
+{
+  freelabels();
   execAddr = 0xffff;
   strcpy(module, " ");
   addLabel("r0", 0);
@@ -3034,20 +3040,9 @@ void assembleFile(char *sourceFile)
     mmapPrint();
   }
 
-  if (numLabels > 0)
-  {
-    for (i = 0; i < numLabels; i++)
-    {
-      free(labels[i]);
-      free(labelProcs[i]);
-    }
-    free(labels);
-    free(labelValues);
-    free(labelProcs);
-  }
+  freelabels();
   if (errors > 0)
     exit(1);
-  numLabels = 0;
 }
 
 int main(int argc, char **argv)
@@ -3134,7 +3129,7 @@ int main(int argc, char **argv)
     memory = NULL;
 
   for (i=0; i<numSourceFiles; i++)
-    assembleFile(sourceFiles[i]);
+         assembleFile(sourceFiles[i]);
 
   if (errors > 0)
     return 1;
