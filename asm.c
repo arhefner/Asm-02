@@ -1517,39 +1517,43 @@ void delDefine(char *define)
 }
 
 /*
-You would like to handle cases like:
-#define MYREG R1
-#define IREG MYREG
+  You would like to handle cases like:
 
-But without tracking which #define has already "fired" you run the risk of 
-an endless loop with something like:
+  #define MYREG R1
+  #define IREG MYREG
 
-#define JUMP JUMP+1
+  But without tracking which #define has already "fired" you run the risk of
+  an endless loop with something like:
 
-This counter stops rescanning after the indicated number of times
+  #define JUMP JUMP+1
+
+  This counter stops rescanning after the indicated number of times
  */
 #define MAXDEFINERECURSE 5
 
-int defReplaceEng(char *line,unsigned recurselevel)
+int defReplaceEng(char *line, unsigned recurselevel)
 {
   char buffer[1024];
   char *pchar;
   byte flag;
   int i;
   int rv=0;  // 0 means no changes
-  if (recurselevel>MAXDEFINERECURSE) return 0;
-  
+
+  if (recurselevel > MAXDEFINERECURSE) return 0;
+
   for (i = 0; i < numDefines; i++)
   {
     flag = 0xff;
     while (flag)
     {
       pchar = strstr(line, defines[i]);
-      if (pchar == NULL)
+      if (pchar == NULL ||
+          isAlpha(*(pchar - 1)) != 0 ||
+          isAlpha(*(pchar + strlen(defines[i]))) != 0)
+      {
         flag = 0;
-      else if (isAlpha(*(pchar - 1)) != 0 ||
-               isAlpha(*(pchar + strlen(defines[i]))) != 0)
-        flag = 0;
+      }
+
       if (flag)
       {
         strncpy(buffer, line, pchar - line);
@@ -1557,23 +1561,24 @@ int defReplaceEng(char *line,unsigned recurselevel)
         strcat(buffer, defineValues[i]);
         strcat(buffer, pchar + strlen(defines[i]));
         strcpy(line, buffer);
-	flag=0;
-	rv=1;
+	      flag=0;
+	      rv=1;
       }
     }
   }
-  if (rv!=0)
-    {
-      rv=defReplaceEng(line,++recurselevel);
-    }
+
+  if (rv != 0)
+  {
+    rv = defReplaceEng(line, ++recurselevel);
+  }
+
   return rv;
 }
 
-void  defReplace(char *line)
+void defReplace(char *line)
 {
-  defReplaceEng(line,0);
+  defReplaceEng(line, 0);
 }
-
 
 char *nextLine(char *line)
 {
@@ -1870,6 +1875,7 @@ void Asm(char *line)
   char lst[1024];
   usedReference = -1;
   orig = sourceLine;
+  line = trim(line);
   if (*line == '.')
   {
     sprintf(lst, "                  %s\n", orig);
@@ -2048,12 +2054,11 @@ void Asm(char *line)
     label[pos] = 0;
     if (*line != ':')
     {
-      doError(ERR_INVALID_LABEL, label);
-      sprintf(lst, "%7s                   %s\n", lineNo(), orig);
-      list(lst);
-      return;
+      // Not a label, must be an opcode.
+      line -= pos;
     }
-    line++;
+    else
+      line++;
   }
 
   line = trim(line);
@@ -2901,7 +2906,7 @@ int pass(int p, char* srcFile)
 }
 
 // Free all the label data
-void freelabels()
+void freeLabels()
 {
   int i;
   if (numLabels != 0)
@@ -2930,7 +2935,7 @@ void freelabels()
 
 void clear()
 {
-  freelabels();
+  freeLabels();
   execAddr = 0xffff;
   strcpy(module, " ");
   addLabel("r0", 0);
@@ -3049,7 +3054,7 @@ void assembleFile(char *sourceFile)
   printf("\n");
   printf("Lines Assembled   : %d\n", linesAssembled);
   printf("Code Generated    : %d\n", codeGenerated);
-  printf("Warnings            : %d\n", warnings);
+  printf("Warnings          : %d\n", warnings);
   printf("Errors            : %d\n", errors);
   printf("\n");
 
@@ -3070,7 +3075,8 @@ void assembleFile(char *sourceFile)
     mmapPrint();
   }
 
-  freelabels();
+  freeLabels();
+
   if (errors > 0)
     exit(1);
 }
