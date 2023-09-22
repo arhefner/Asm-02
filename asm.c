@@ -442,7 +442,8 @@ void addLabel(char *label, word value)
   for (i = 0; i < numLabels; i++)
   {
     if (strcasecmp(label, labels[i]) == 0 &&
-        strcasecmp(module, labelProcs[i]) == 0)
+          (strcmp(labelProcs[i], " ") == 0 ||
+           strcasecmp(module, labelProcs[i]) == 0))
     {
       doError(ERR_DUPLICATE_LABEL, label);
       return;
@@ -2055,6 +2056,7 @@ void Asm(char *line)
     if (*line != ':')
     {
       // Not a label, must be an opcode.
+      strcpy(label, "");
       line -= pos;
     }
     else
@@ -2682,6 +2684,7 @@ void help()
           "-max          - Set 1802/MAX memory model\n"
           "-ram=low-high - Set explicit RAM region\n"
           "-rom=how-high - Set explicit ROM region\n"
+          "-v,-version   - Display version information\n"
           "-h,-help      - This message\n");
 }
 
@@ -2718,6 +2721,7 @@ struct option long_opts[] =
   { "ram", required_argument, 0, 'R' },
   { "rom", required_argument, 0, 'M' },
   { "help", no_argument, 0, 'h' },
+  { "version", no_argument, 0, 'v' },
   { 0, 0, 0, 0 }
 };
 
@@ -2732,7 +2736,15 @@ void processOption(int c, int index, char *option)
     help();
     exit(1);
     break;
-
+  case 'v':
+    printf("Asm/02 v1.8\n");
+    printf("by Michael H. Riley\n");
+    printf("with contributions by:\n");
+    printf("  Tony Hefner\n");
+    printf("  Al Williams\n");
+    printf("  Gaston Williams\n");
+    exit(1);
+    break;
   case LF_ARG:
     strcpy(lineEnding,"\n");
     break;
@@ -3086,8 +3098,6 @@ int main(int argc, char **argv)
   int i;
   time_t tv;
   struct tm dt;
-  printf("Asm/02 v1.7\n");
-  printf("by Michael H. Riley\n");
   createLst = 0;
   outMode = 'R';
   ramStart = 0x0000;
