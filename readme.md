@@ -113,6 +113,7 @@ $F7
 * -lf           - Use LF as line ending
 * -crlf         - Use CRLF as line ending
 * -lfcr         - Use LFCR as line ending
+* -version, -v  - Display the version number
 * -help, -h     - List of options
 
 ## Evaluator variables
