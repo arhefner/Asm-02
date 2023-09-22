@@ -1,3 +1,5 @@
+GETOPT := getopt
+
 PROJECT = asm02
 CC = gcc
 DEFS = -Wall
@@ -6,7 +8,14 @@ INCDIR =
 LIBS =
 LIBDIR =
 OBJS = \
-	asm.o
+	asm.o mmap.o
+
+ifeq ($(GETOPT),ya_getopt)
+  DEFS += -DUSE_YA_GETOPT
+  OBJS += ya_getopt.o
+else ifneq ($(GETOPT),getopt)
+  $(error GETOPT must be getopt or ya_getopt)
+endif
 
 $(PROJECT): $(OBJS)
 	$(CC) $(DEFS) $(LIBDIR) $(OBJS) $(LIBS) -o $(PROJECT)
@@ -21,5 +30,3 @@ clean:
 install:
 	cp asm02 /usr/local/bin/
 	chmod a+rx /usr/local/bin/asm02
-
-asm.o:           header.h asm.c
