@@ -914,7 +914,7 @@ char *evaluate(char *pos, dword *result)
             while ((*pos >= 'a' && *pos <= 'z') ||
                    (*pos >= 'A' && *pos <= 'Z') ||
                    (*pos >= '0' && *pos <= '9') ||
-                   *pos == '_' || *pos == '!'|| *pos == '$')
+                   *pos == '_' || *pos == '!' || *pos == '$')
             {
               token[p++] = *pos++;
             }
@@ -2048,7 +2048,7 @@ void Asm(char *line)
     while ((*line >= 'a' && *line <= 'z') ||
            (*line >= 'A' && *line <= 'Z') ||
            (*line >= '0' && *line <= '9') ||
-           *line == '_' || *line == '!')
+           *line == '_' || *line == '!' || *line == '$')
     {
       label[pos++] = *line++;
     }
