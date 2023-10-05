@@ -267,7 +267,7 @@ static const char *emessages[] = {
 #define ERR_UNRECOGNIZED_DIRECTIVE    (ERROR | 11)
     "Unrecognized assembler directive: %s",
 #define ERR_INVALID_LABEL             (ERROR | 12)
-    "Missing ':' at label: %s",
+    "Invalid label: %s",
 #define ERR_PREPROC_FIRST             (ERROR | 13)
     "Preprocessor directive must be at start of line",
 #define ERR_INVALID_OPERANDS          (ERROR | 14)
@@ -2098,6 +2098,28 @@ void Asm(char *line)
   {
     addLabel(label, address);
   }
+  if ((strlen(opcode) == 0) && (strlen(args) != 0))
+  {
+    char *end = args;
+
+    while ((*end != ':' && *end != ' ' &&
+            *end != '\t' && *end != '\0'))
+    {
+      end++;
+    }
+    *end = '\0';
+
+    if (strlen(label) == 0)
+    {
+      doError(ERR_INVALID_LABEL, args);
+      return;
+    }
+    else
+    {
+      doError(ERR_UNKNOWN_OPCODE, args);
+      return;
+    }
+  }
   if (strlen(opcode) > 0)
   {
     macro = -1;
@@ -2737,7 +2759,7 @@ void processOption(int c, int index, char *option)
     exit(1);
     break;
   case 'v':
-    printf("Asm/02 v1.8\n");
+    printf("Asm/02 v1.9\n");
     printf("by Michael H. Riley\n");
     printf("with contributions by:\n");
     printf("  Tony Hefner\n");
