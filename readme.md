@@ -18,12 +18,34 @@ The original ASM/02 license reads:
  *** without express written permission from the author.         ***
  *******************************************************************
 ```
-This code can use ya_getopt (https://github.com/kubo/ya_getopt), which is provided under a 2-clause BSD-style license.
-If you are compiling under Linux, you can set the GETOPT variable to 'ya_getopt' to use this instead of the standard getopt library, like so:
 
-```
+## Building the Assembler
+
+### Linux
+
+This code can use ya_getopt (https://github.com/kubo/ya_getopt), which is provided under a 2-clause BSD-style license.
+If you are compiling under Linux using the included Makefile, you can set the GETOPT variable to 'ya_getopt' to use this instead of the standard getopt library, like so:
+
+```shell
 make GETOPT=ya_getopt
 ```
+
+### Windows
+
+This code should be able to be compiled with any reasonable C compiler.
+All that is needed is to compile and link all the "C" files in this repository to produce the assembler executable.
+There are no compiler options or settings that are strictly required.
+
+The assembler can be built with Microsoft Visual Studio without using its IDE.
+Any recent version of the free "Community Edition" of Visual Studio should work.
+Start a "Developer Command Prompt" from the Windows Start Menu and change the current directory to the one containing the source code.
+This command is sufficient to build all the sources:
+
+```shell
+cl *.c /Fe:asm02.exe
+```
+
+Of course the Visual Studio IDE can be used to easily create a Solution/Project to build the "C" files in this repository.
 
 ## Special Features and Usage Notes
 The assembler can produce binary, Intel hex, or a relocatable format for use with [Link/02](https://github.com/arhefner/Link-02).

@@ -8,3 +8,7 @@ asm02
 *.inc
 *.asm
 .vscode
+*.obj
+*.exe
+*.ilk
+*.pdb
