@@ -1543,10 +1543,10 @@ int defReplaceEng(char *line, unsigned recurselevel)
   int rv=0;  // 0 means no changes
 
   if (recurselevel > MAXDEFINERECURSE)
-    {
-      doError(ERR_DEFINE_NESTING_DEPTH);
-      return 0;
-    }
+  {
+    doError(ERR_DEFINE_NESTING_DEPTH);
+    return 0;
+  }
 
   for (i = 0; i < numDefines; i++)
   {
@@ -1568,8 +1568,8 @@ int defReplaceEng(char *line, unsigned recurselevel)
         strcat(buffer, defineValues[i]);
         strcat(buffer, pchar + strlen(defines[i]));
         strcpy(line, buffer);
-	      flag=0;
-	      rv=1;
+        flag=0;
+        rv=1;
       }
     }
   }
