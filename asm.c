@@ -297,7 +297,9 @@ static const char *emessages[] = {
 #define ERR_INVALID_NUMBER            (ERROR | 26)
     "Non-number found in expression",
 #define ERR_MEMORY_OVERLAP            (ERROR | 27)
-    "Memory overwrite at address %04x"
+    "Memory overwrite at address %04x",
+#define ERR_DEFINE_NESTING_DEPTH      (ERROR | 28)
+    "#define nesting too deep"
 };
 
 static const char *wmessages[] = {
@@ -1540,7 +1542,11 @@ int defReplaceEng(char *line, unsigned recurselevel)
   int i;
   int rv=0;  // 0 means no changes
 
-  if (recurselevel > MAXDEFINERECURSE) return 0;
+  if (recurselevel > MAXDEFINERECURSE)
+    {
+      doError(ERR_DEFINE_NESTING_DEPTH);
+      return 0;
+    }
 
   for (i = 0; i < numDefines; i++)
   {
