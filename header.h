@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#include <strings.h>
 #include <fcntl.h>
 #include <stdbool.h>
 #include "mmap.h"

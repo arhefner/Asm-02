@@ -213,6 +213,32 @@ OPCODE opcodes[] = {
 char sourceLine[1024];
 word lstCount;
 
+char *strdup(const char *s)
+{
+  char *p = NULL;
+
+  if (s != NULL)
+  {
+    size_t size = strlen(s) + 1;
+    char *p = malloc(size);
+    if (p)
+    {
+      memcpy(p, s, size);
+    }
+  }
+   return p;
+}
+
+struct tm *localtime_r(const time_t *timer, struct tm *buf)
+{
+  if (buf != NULL)
+  {
+    memcpy(buf, localtime(timer), sizeof(struct tm));
+  }
+
+  return buf;
+}
+
 void list(char *message)
 {
   if (passNumber != 2)
