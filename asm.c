@@ -299,7 +299,11 @@ static const char *emessages[] = {
 #define ERR_MEMORY_OVERLAP            (ERROR | 27)
     "Memory overwrite at address %04x",
 #define ERR_DEFINE_NESTING_DEPTH      (ERROR | 28)
-    "#define nesting too deep"
+    "#define nesting too deep",
+#define ERR_LDN_REG0_INVALID          (ERROR | 29)
+    "R0 not allowed for LDN",
+#define ERR_INVALID_IO_PORT           (ERROR | 30)
+    "Input/output port must be 1-7"
 };
 
 static const char *wmessages[] = {
@@ -2395,7 +2399,17 @@ void Asm(char *line)
         output(value & 0xff);
         break;
       case OT_NARG:
-        output(opcodes[pos].byte1 | (processArgs(args) & 0xf));
+        value = processArgs(args) & 0xf;
+        if ((opcodes[pos].byte1 == LDN) && (value == 0))
+        {
+          doError(ERR_LDN_REG0_INVALID);
+        }
+        else if (((opcodes[pos].byte1 == OUT) || (opcodes[pos].byte1 == INP)) &&
+                 ((value < 1) || (value > 7)))
+        {
+          doError(ERR_INVALID_IO_PORT);
+        }
+        output(opcodes[pos].byte1 | value);
         break;
       case OT_DB:
         processDb(args, opcodes[pos].byte1);
