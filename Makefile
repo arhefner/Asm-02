@@ -2,7 +2,7 @@ GETOPT := getopt
 
 PROJECT = asm02
 CC = gcc
-DEFS = -Wall
+DEFS = -Wall -std=c99
 INCS =
 INCDIR =
 LIBS =
