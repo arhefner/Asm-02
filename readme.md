@@ -155,8 +155,10 @@ $F7
 * #ifdef symbol
 * #ifndef symbol
 * #else
+* #elif expr
 * #endif
 * #error text
+* defined(symbol)
 
 ## Pseudo ops
 * extrn label   - Define external label
