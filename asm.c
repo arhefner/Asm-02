@@ -43,6 +43,7 @@ typedef struct
 #define OT_EEVER  26
 #define OT_DF     27
 
+#define OP_NOT    0x95
 #define OP_LOW    0x94
 #define OP_HIGH   0x93
 #define OP_SGN    0x92
@@ -58,7 +59,6 @@ typedef struct
 #define OP_AND    0x40
 #define OP_OR     0x41
 #define OP_XOR    0x42
-#define OP_NOT    0x43
 #define OP_EQ     0x30
 #define OP_NE     0x31
 #define OP_LT     0x32
@@ -298,12 +298,16 @@ static const char *emessages[] = {
     "Non-number found in expression",
 #define ERR_MEMORY_OVERLAP            (ERROR | 27)
     "Memory overwrite at address %04x",
-#define ERR_DEFINE_NESTING_DEPTH      (ERROR | 28)
-    "#define nesting too deep",
+#define ERR_UNDEFINED_SYMBOL          (ERROR | 28)
+    "Symbol %s undefined",
 #define ERR_LDN_REG0_INVALID          (ERROR | 29)
     "R0 not allowed for LDN",
 #define ERR_INVALID_IO_PORT           (ERROR | 30)
-    "Input/output port must be 1-7"
+    "Input/output port must be 1-7",
+#define MISSING_DEFINED_PAREN         (ERROR | 31)
+    "Missing ')' after \"defined\"",
+#define DEFINED_REQUIRES_ID           (ERROR | 32)
+    "Operator \"defined\" requires an identifier"
 };
 
 static const char *wmessages[] = {
@@ -345,6 +349,21 @@ void doError(int msgno, ...)
 
   buffer[offset++] = '\n';
   buffer[offset++] = '\0';
+
+  if (showIncPath)
+  {
+    int i = fileNumber - 1;
+
+    fprintf(stderr, "In file included from %s:%d:\n", sourceFiles[i], lineNumber[i]);
+
+    while (i > 0)
+    {
+      --i;
+      fprintf(stderr, "                 from %s:%d:\n", sourceFiles[i], lineNumber[i]);
+    }
+
+    showIncPath = false;
+  }
 
   fprintf(stderr, "%s:%d: %s", sourceFiles[fileNumber], lineNumber[fileNumber], buffer);
   fprintf(stderr, " %4d | %s\n", lineNumber[fileNumber], sourceLine);
@@ -828,7 +847,6 @@ char *evaluate(char *pos, dword *result)
   usedLocal = -1;
   while (*pos != 0 && op != OP_END)
   {
-
     flag = -1;
     while (flag)
     {
@@ -836,6 +854,11 @@ char *evaluate(char *pos, dword *result)
       if (*pos == '(')
       {
         ops[ostack++] = OP_OP;
+        flag = -1;
+      }
+      else if (*pos == '!')
+      {
+        ops[ostack++] = OP_NOT;
         flag = -1;
       }
       else if (strncasecmp(pos, "abs(", 4) == 0)
@@ -1027,8 +1050,6 @@ char *evaluate(char *pos, dword *result)
           op = OP_NE;
           pos++;
         }
-        else
-          op = OP_NOT;
         break;
       case '<':
         if (*(pos + 1) == '<')
@@ -1465,29 +1486,48 @@ void addDefine(char *define, char *value)
 {
   int i;
   for (i = 0; i < numDefines; i++)
-    if (strcasecmp(define, defines[i]) == 0)
+  {
+    if (strcasecmp(define, defines[i].name) == 0)
     {
       doError(ERR_DUPLICATE_DEFINE, define);
       return;
     }
+  }
   numDefines++;
-  defines = (char **)realloc(defines, sizeof(char *) * numDefines);
-  defineValues = (char **)realloc(defineValues, sizeof(char *) * numDefines);
+  defines = (Define *)realloc(defines, sizeof(Define) * numDefines);
 
-  defines[numDefines - 1] = (char *)malloc(strlen(define) + 1);
-  strcpy(defines[numDefines - 1], define);
-  defineValues[numDefines - 1] = (char *)malloc(strlen(value) + 1);
-  strcpy(defineValues[numDefines - 1], value);
+  defines[numDefines - 1].name = (char *)malloc(strlen(define) + 1);
+  strcpy(defines[numDefines - 1].name, define);
+  defines[numDefines - 1].value = (char *)malloc(strlen(value) + 1);
+  strcpy(defines[numDefines - 1].value, value);
+  defines[numDefines - 1].visited = false;
 }
 
-char *findDefine(char *define)
+void freeDefines()
+{
+  for (int i = 0; i < numDefines; i++)
+  {
+    free(defines[i].name);
+    free(defines[i].value);
+  }
+  if (numDefines > 0)
+  {
+    free(defines);
+    defines = NULL;
+    numDefines = 0;
+  }
+}
+
+Define *findDefine(char *define)
 {
   int i;
   for (i = 0; i < numDefines; i++)
-    if (strcasecmp(define, defines[i]) == 0)
+  {
+    if (strcasecmp(define, defines[i].name) == 0)
     {
-      return defineValues[i];
+      return defines + i;
     }
+  }
   return NULL;
 }
 
@@ -1497,98 +1537,186 @@ void delDefine(char *define)
   int i;
   pos = -1;
   for (i = 0; i < numDefines; i++)
-    if (strcasecmp(define, defines[i]) == 0)
+  {
+    if (strcasecmp(define, defines[i].name) == 0)
+    {
       pos = i;
+      break;
+    }
+  }
   if (pos < 0)
     return;
-  free(defines[pos]);
-  free(defineValues[pos]);
+  free(defines[pos].name);
+  free(defines[pos].value);
   for (i = pos; i < numDefines - 1; i++)
   {
-    defines[i] = defines[i + 1];
-    defineValues[i] = defineValues[i + 1];
+    defines[i].name = defines[i + 1].name;
+    defines[i].value = defines[i + 1].value;
   }
   numDefines--;
   if (numDefines == 0)
   {
     free(defines);
     defines = NULL;
-    free(defineValues);
-    defineValues = NULL;
   }
   else
   {
-    defines = (char **)realloc(defines, sizeof(char *) * numDefines);
-    defineValues = (char **)realloc(defineValues, sizeof(char *) * numDefines);
+    defines = (Define *)realloc(defines, sizeof(Define) * numDefines);
   }
 }
 
-/*
-  You would like to handle cases like:
-
-  #define MYREG R1
-  #define IREG MYREG
-
-  But without tracking which #define has already "fired" you run the risk of
-  an endless loop with something like:
-
-  #define JUMP JUMP+1
-
-  This counter stops rescanning after the indicated number of times
- */
-#define MAXDEFINERECURSE 5
-
-int defReplaceEng(char *line, unsigned recurselevel)
+void defReplaceEng(Define *prev, char *line)
 {
   char buffer[1024];
-  char *pchar;
-  byte flag;
+  char *in;
+  char *out;
+  char *token;
+  Define *define;
+  char *value;
+  char tmp;
   int i;
-  int rv=0;  // 0 means no changes
 
-  if (recurselevel > MAXDEFINERECURSE)
-  {
-    doError(ERR_DEFINE_NESTING_DEPTH);
-    return 0;
-  }
+  in = line;
+  out = buffer;
 
-  for (i = 0; i < numDefines; i++)
+  while (*in != '\0')
   {
-    flag = 0xff;
-    while (flag)
+    if (*in == '"')
     {
-      pchar = strstr(line, defines[i]);
-      if (pchar == NULL ||
-          isAlpha(*(pchar - 1)) != 0 ||
-          isAlpha(*(pchar + strlen(defines[i]))) != 0)
+      *out++ = *in++;
+      while (*in != '"' && *in != '\0')
+        *out++ = *in++;
+      *out++ = *in++;
+    }
+    else if (*in == '\'')
+    {
+      *out++ = *in++;
+      while (*in != '\'' && *in != '\0')
+        *out++ = *in++;
+      *out++ = *in++;
+    }
+    else if (*in == ';')
+    {
+      // Remainder of line is a comment
+      while (*in != '\0')
       {
-        flag = 0;
+        *out++ = *in++;
+      }
+    }
+    else if (isAlpha(*in))
+    {
+      token = in++;
+      while (isAlpha(*in) && *in != '\0')
+      {
+        in++;
+      }
+      tmp = *in;
+      *in = '\0';
+
+      if (prev == NULL)
+      {
+        for (i = 0; i < numDefines; i++)
+        {
+          defines[i].visited = false;
+        }
+      }
+      else
+      {
+        prev->visited = true;
       }
 
-      if (flag)
+      define = findDefine(token);
+
+      if (define != NULL)
       {
-        strncpy(buffer, line, pchar - line);
-        buffer[pchar - line] = 0;
-        strcat(buffer, defineValues[i]);
-        strcat(buffer, pchar + strlen(defines[i]));
-        strcpy(line, buffer);
-        flag=0;
-        rv=1;
+        if (define->visited)
+        {
+          doError(ERR_UNDEFINED_SYMBOL, define->name);
+          exit(1);
+        }
+
+        token = out;
+        value = define->value;
+        while (*value != '\0')
+        {
+          *out++ = *value++;
+        }
+
+        *out = '\0';
+        defReplaceEng(define, token);
+
+        out = token + strlen(token);
       }
+      else
+      {
+        while (token != in)
+        {
+          *out++ = *token++;
+        }
+      }
+      *in = tmp;
+    }
+    else
+    {
+      *out++ = *in++;
     }
   }
 
-  if (rv != 0)
-  {
-    rv = defReplaceEng(line, ++recurselevel);
-  }
-
-  return rv;
+  *out = '\0';
+  strcpy(line, buffer);
 }
 
 void defReplace(char *line)
 {
-  defReplaceEng(line, 0);
+  defReplaceEng(NULL, line);
+}
+
+void evalDefined(char *line)
+{
+  char buffer[1024];
+  char *pchar;
+  char *end;
+  byte flag;
+  int len;
+
+  flag = 0xff;
+  while (flag)
+  {
+    pchar = strstr(line, "defined(");
+    if (pchar == NULL ||
+        isAlpha(*(pchar - 1)) != 0)
+    {
+      flag = 0;
+    }
+
+    if (flag)
+    {
+      len = pchar - line;
+      strncpy(buffer, line, len);
+      buffer[len] = 0;
+      len = 0;
+      pchar += 8;
+      end = strchr(pchar, ')');
+
+      if (end == NULL)
+      {
+        doError(MISSING_DEFINED_PAREN);
+        exit(1);
+      }
+
+      *end = '\0';
+
+      if (strlen(pchar) == 0)
+      {
+        doError(DEFINED_REQUIRES_ID);
+        exit(1);
+      }
+
+      strcat(buffer, (findDefine(pchar) != NULL) ? "1" : "0");
+      strcat(buffer, end+1);
+      strcpy(line, buffer);
+    }
+  }
 }
 
 char *nextLine(char *line)
@@ -1598,11 +1726,12 @@ char *nextLine(char *line)
   char buffer[1024];
   char path[2048];
   int pos;
-  char *pchar;
+  Define *define;
   word value;
   dword dvalue;
   int i;
   flag = -1;
+
   while (flag)
   {
     ret = fgets(line, 1024, sourceFile[fileNumber]);
@@ -1611,7 +1740,6 @@ char *nextLine(char *line)
       while (strlen(ret) > 0 && line[strlen(ret) - 1] <= ' ')
         line[strlen(ret) - 1] = 0;
       strcpy(sourceLine, line);
-      linesAssembled++;
       lineNumber[fileNumber]++;
       flag = 0;
       ret = trim(ret);
@@ -1619,7 +1747,6 @@ char *nextLine(char *line)
       {
         if (nests[numNests] == 'Y')
         {
-
           if (strncmp(ret, "#include ", 9) == 0)
           {
             ret += 9;
@@ -1630,6 +1757,7 @@ char *nextLine(char *line)
               buffer[pos++] = *ret++;
             buffer[pos] = 0;
             fileNumber++;
+            showIncPath = true;
             lineNumber[fileNumber] = 0;
             sourceFiles[fileNumber] = strdup(buffer);
             sourceFile[fileNumber] = fopen(buffer, "r");
@@ -1697,9 +1825,9 @@ char *nextLine(char *line)
             while (*ret != 0 && *ret > ' ')
               buffer[pos++] = *ret++;
             buffer[pos] = 0;
-            pchar = findDefine(buffer);
+            define = findDefine(buffer);
             numNests++;
-            if (pchar != NULL)
+            if (define != NULL)
               nests[numNests] = 'Y';
             else
               nests[numNests] = 'N';
@@ -1722,9 +1850,9 @@ char *nextLine(char *line)
             while (*ret != 0 && *ret > ' ')
               buffer[pos++] = *ret++;
             buffer[pos] = 0;
-            pchar = findDefine(buffer);
+            define = findDefine(buffer);
             numNests++;
-            if (pchar != NULL)
+            if (define != NULL)
               nests[numNests] = 'N';
             else
               nests[numNests] = 'Y';
@@ -1742,6 +1870,7 @@ char *nextLine(char *line)
           {
             ret += 4;
             ret = strip(ret);
+            evalDefined(ret);
             defReplace(ret);
             evaluate(ret, &dvalue);
             value = dvalue;
@@ -1845,6 +1974,7 @@ char *nextLine(char *line)
       {
         fclose(sourceFile[fileNumber]);
         fileNumber--;
+        showIncPath = (fileNumber != 0);
         flag = -1;
       }
     }
@@ -2779,7 +2909,6 @@ void processOption(int c, int index, char *option)
     exit(1);
     break;
   case 'v':
-    printf("Asm/02 v1.9\n");
     printf("by Michael H. Riley\n");
     printf("with contributions by:\n");
     printf("  Tony Hefner\n");
@@ -2947,15 +3076,8 @@ int pass(int p, char* srcFile)
   if (numNests > 0)
     doError(ERR_MISSING_ENDIF);
 
-  for (i = 0; i < numDefines; i++)
-    free(defines[i]);
-  if (numDefines > 0)
-  {
-    free(defines);
-    defines = NULL;
-    free(defineValues);
-    defineValues = NULL;
-  }
+  freeDefines();
+
   return 0;
 }
 
@@ -3023,7 +3145,6 @@ void assembleFile(char *sourceFile)
   FILE *buildFile;
   inProc = 0;
   defines = NULL;
-  defineValues = NULL;
   numDefines = 0;
   errors = 0;
   warnings = 0;
@@ -3072,23 +3193,20 @@ void assembleFile(char *sourceFile)
   fclose(buildFile);
 
   for (i = 0; i < numClDefines; i++)
+  {
     addDefine(clDefines[i], clDefineValues[i]);
+  }
 
   i = pass(1, sourceFile);
 
-  if (numDefines != 0)
-  {
-    free(defines);
-    defines = NULL;
-    free(defineValues);
-    defineValues = NULL;
-    numDefines = 0;
-  }
+  freeDefines();
 
   if (i == 0 && errors == 0)
   {
     for (i = 0; i < numClDefines; i++)
+    {
       addDefine(clDefines[i], clDefineValues[i]);
+    }
     i = pass(2, sourceFile);
     if (outMode == 'B' && i == 0 && errors == 0)
     {
@@ -3103,7 +3221,9 @@ void assembleFile(char *sourceFile)
     }
   }
   else
+  {
     fprintf(stderr, "%s\n", "Errors during pass 1, aborting pass 2");
+  }
 
   printf("\n");
   printf("Lines Assembled   : %d\n", linesAssembled);
@@ -3163,6 +3283,7 @@ int main(int argc, char **argv)
   numExternals = 0;
   incPath = NULL;
   numIncPath = 0;
+  showIncPath = false;
   strcpy(lineEnding, "\n");
   tv = time(NULL);
   localtime_r(&tv, &dt);
@@ -3173,6 +3294,9 @@ int main(int argc, char **argv)
   buildMinute = dt.tm_min;
   buildSecond = dt.tm_sec;
   i = 1;
+
+  printf("Asm/02 v1.10\n");
+
   while (1)
   {
     int index = -1, c;
