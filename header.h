@@ -13,7 +13,6 @@
 #include <io.h>
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
-#define localtime_r(X, Y) (localtime_s(Y, X))
 #define USE_YA_GETOPT
 #else
 #include <strings.h>

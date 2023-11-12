@@ -229,6 +229,16 @@ char *strdup(const char *s)
   return p;
 }
 
+struct tm *localtime_r(const time_t *timer, struct tm *buf)
+{
+  if (buf != NULL)
+  {
+    memcpy(buf, localtime(timer), sizeof(struct tm));
+  }
+
+  return buf;
+}
+
 void list(char *message)
 {
   if (passNumber != 2)
