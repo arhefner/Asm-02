@@ -220,13 +220,13 @@ char *strdup(const char *s)
   if (s != NULL)
   {
     size_t size = strlen(s) + 1;
-    char *p = malloc(size);
+    p = malloc(size);
     if (p)
     {
       memcpy(p, s, size);
     }
   }
-   return p;
+  return p;
 }
 
 struct tm *localtime_r(const time_t *timer, struct tm *buf)
@@ -1786,6 +1786,8 @@ char *nextLine(char *line)
             showIncPath = true;
             lineNumber[fileNumber] = 0;
             sourceFiles[fileNumber] = strdup(buffer);
+            printf("%s\n", buffer);
+            printf("%s\n", sourceFiles[fileNumber]);
             sourceFile[fileNumber] = fopen(buffer, "r");
             if (sourceFile[fileNumber] == NULL)
             {
