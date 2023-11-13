@@ -1806,6 +1806,7 @@ char *nextLine(char *line)
               if (sourceFile[fileNumber] == NULL)
               {
                 fileNumber--;
+                showIncPath = (fileNumber != 0);
                 doError(ERR_COULD_NOT_OPEN, buffer);
               }
             }
@@ -1997,14 +1998,16 @@ char *nextLine(char *line)
     else
     {
       if (fileNumber == 0)
+      {
         flag = 0;
+      }
       else
       {
         fclose(sourceFile[fileNumber]);
         fileNumber--;
-        showIncPath = (fileNumber != 0);
         flag = -1;
       }
+      showIncPath = (fileNumber != 0);
     }
   }
   if (fileNumber == 0)
