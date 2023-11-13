@@ -1786,8 +1786,6 @@ char *nextLine(char *line)
             showIncPath = true;
             lineNumber[fileNumber] = 0;
             sourceFiles[fileNumber] = strdup(buffer);
-            printf("%s\n", buffer);
-            printf("%s\n", sourceFiles[fileNumber]);
             sourceFile[fileNumber] = fopen(buffer, "r");
             if (sourceFile[fileNumber] == NULL)
             {
@@ -2560,7 +2558,7 @@ void Asm(char *line)
         output(value & 0xff);
         break;
       case OT_NARG:
-        value = processArgs(args) & 0xf;
+        value = processArgs(args);
         if ((opcodes[pos].byte1 == LDN) && (value == 0))
         {
           doError(ERR_LDN_REG0_INVALID);
@@ -2570,7 +2568,7 @@ void Asm(char *line)
         {
           doError(ERR_INVALID_IO_PORT);
         }
-        output(opcodes[pos].byte1 | value);
+        output(opcodes[pos].byte1 | (value & 0xf));
         break;
       case OT_DB:
         processDb(args, opcodes[pos].byte1);
