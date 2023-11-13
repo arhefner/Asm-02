@@ -19,16 +19,6 @@
 #include <unistd.h>
 #include <sys/time.h>
 #define O_BINARY 0
-
-struct tm *localtime_r(const time_t *timer, struct tm *buf)
-{
-  if (buf != NULL)
-  {
-    memcpy(buf, localtime(timer), sizeof(struct tm));
-  }
-
-  return buf;
-}
 #endif
 
 #ifdef USE_YA_GETOPT
