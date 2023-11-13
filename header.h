@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
-#include <strings.h>
 #include <fcntl.h>
 #include <stdbool.h>
 #include "mmap.h"
@@ -14,12 +13,22 @@
 #include <io.h>
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
-#define localtime_r(X, Y) (localtime_s(Y, X))
 #define USE_YA_GETOPT
 #else
+#include <strings.h>
 #include <unistd.h>
 #include <sys/time.h>
 #define O_BINARY 0
+
+struct tm *localtime_r(const time_t *timer, struct tm *buf)
+{
+  if (buf != NULL)
+  {
+    memcpy(buf, localtime(timer), sizeof(struct tm));
+  }
+
+  return buf;
+}
 #endif
 
 #ifdef USE_YA_GETOPT
