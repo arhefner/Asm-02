@@ -998,7 +998,7 @@ char *evaluate(char *pos, dword *result)
         if (term == 0)
         {
           if ((*pos >= 'a' && *pos <= 'z') ||
-              (*pos >= 'A' && *pos <= 'Z'))
+              (*pos >= 'A' && *pos <= 'Z') || *pos == '_' )
           {
             p = 0;
             while ((*pos >= 'a' && *pos <= 'z') ||
@@ -2313,7 +2313,7 @@ void Asm(char *line)
   strcpy(opcode, "");
   strcpy(args, "");
   if ((*line >= 'a' && *line <= 'z') ||
-      (*line >= 'A' && *line <= 'Z'))
+      (*line >= 'A' && *line <= 'Z') || *line == '_')
   {
     pos = 0;
     while ((*line >= 'a' && *line <= 'z') ||
