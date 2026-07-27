@@ -11,7 +11,7 @@
 
 #include "header.h"
 
-#define NAME_AND_VERSION  "Asm/02 v1.6"
+#define NAME_AND_VERSION  "Asm/02 v1.7"
 
 #define MAX_LINE_LEN      256
 #define LIST_CODE_LEN     26
@@ -481,6 +481,30 @@ int isAlpha(char c)
 
 int isRReg(char *line)
 {
+  /* A token like "re_pos" or "rd_pos" starts with 'r' followed by a
+   * hex-range letter ('a'-'f'), which looks exactly like a 2-character
+   * register name (ra-rf) at a glance -- but the character immediately
+   * after must ALSO be checked against every character this
+   * assembler's own identifier syntax treats as a valid label
+   * continuation (see the label-scanning loops elsewhere in this
+   * file, e.g. "*line == '_' || *line == '!' || *line == '$'"), not
+   * just alphanumerics. Without the '_'/'!'/'$' checks below, a label
+   * such as "re_pos" was misidentified as the register "re" followed
+   * by an unrelated "_pos" -- silently corrupting which multi-form
+   * .op (e.g. MOV's register-to-register "NR" vs register-to-word
+   * "NW" encoding) instruction match was selected, which produces a
+   * DIFFERENT INSTRUCTION LENGTH than the correct form. Combined with
+   * an unresolved forward-referenced label temporarily evaluating to
+   * 0 during pass 1 (see getLabel()'s own "not found" fallback), this
+   * caused pass 1 to under-count a "mov reg,label"-style instruction
+   * by 2 bytes relative to what pass 2 (which has every label fully
+   * resolved) actually emits -- silently and permanently desyncing
+   * every SUBSEQUENT label's own recorded address for the rest of
+   * the file, since addLabel() only ever runs during pass 1. Found
+   * 2026-07-27 in ELF-DOS (a real downstream project), which hit this
+   * for labels like "re_pos"/"rd_pos" used as MOV operands; see that
+   * project's own CLAUDE.md for the full investigation and a
+   * reproducible before/after regression test. */
   if (*line != 'r' && *line != 'R')
     return 0;
   line++;
@@ -494,6 +518,8 @@ int isRReg(char *line)
     if (*line >= 'a' && *line <= 'z')
       return 0;
     if (*line >= 'A' && *line <= 'Z')
+      return 0;
+    if (*line == '_' || *line == '!' || *line == '$')
       return 0;
     return -1;
   }
@@ -509,6 +535,8 @@ int isRReg(char *line)
         return 0;
       if (*line >= 'A' && *line <= 'Z')
         return 0;
+      if (*line == '_' || *line == '!' || *line == '$')
+        return 0;
       return -1;
     }
     if (*line >= '0' && *line <= '9')
@@ -516,6 +544,8 @@ int isRReg(char *line)
     if (*line >= 'a' && *line <= 'z')
       return 0;
     if (*line >= 'A' && *line <= 'Z')
+      return 0;
+    if (*line == '_' || *line == '!' || *line == '$')
       return 0;
     return -1;
   }
