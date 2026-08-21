@@ -11,7 +11,7 @@
 
 #include "header.h"
 
-#define NAME_AND_VERSION  "Asm/02 v1.7"
+#define NAME_AND_VERSION  "Asm/02 v1.8"
 
 #define MAX_LINE_LEN      256
 #define LIST_CODE_LEN     26
@@ -2467,7 +2467,15 @@ void Asm(char *line)
   qt = 0;
   while (((qt == 0 && *line != ';') || qt) && *line != 0)
   {
-    if (*line == '\'')
+    /* BUG FIX (2026-08-21): this quote-tracking toggle only checked
+     * for a single quote, so a literal ';' inside a double-quoted
+     * "..." string (e.g. db "[9999;9999H",0) was treated as a real
+     * comment start, silently truncating the rest of the line. The
+     * two other quote-aware helpers in this file (strip(),
+     * defReplaceEng()) already toggle on either quote character --
+     * this one didn't, and it's the one that matters for db/dw/etc.
+     * argument parsing. */
+    if (*line == '\'' || *line == '"')
       qt = 1 - qt;
     args[pos++] = *line++;
   }
