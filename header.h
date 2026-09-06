@@ -188,10 +188,12 @@ LINK byte    fixupLowOffset[30000];
 LINK int     numFixups;
 LINK int     usedLocal;
 
+#define MAX_PATH_LEN 1024
+
 LINK word    address;
 LINK int     asmFile;
-LINK char    asmName[64];
-LINK char    baseName[64];
+LINK char    asmName[MAX_PATH_LEN];
+LINK char    baseName[MAX_PATH_LEN];
 LINK int     buildMonth;
 LINK int     buildDay;
 LINK int     buildYear;
@@ -214,14 +216,14 @@ LINK char    lineEnding[3];
 LINK int     linesAssembled;
 LINK word    lowAddress;
 LINK FILE   *lstFile;
-LINK char    lstName[64];
+LINK char    lstName[MAX_PATH_LEN];
 LINK byte   *memory;
 LINK word    outAddress;
 LINK byte    outBuffer[16];
 LINK byte    outCount;
 LINK int     outFile;
 LINK int     outMode;
-LINK char    outName[64];
+LINK char    outName[MAX_PATH_LEN];
 LINK int     passNumber;
 LINK word    ramEnd;
 LINK word    ramStart;

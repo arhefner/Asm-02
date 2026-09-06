@@ -11,7 +11,7 @@
 
 #include "header.h"
 
-#define NAME_AND_VERSION  "Asm/02 v1.8"
+#define NAME_AND_VERSION  "Asm/02 v1.9"
 
 #define MAX_LINE_LEN      256
 #define LIST_CODE_LEN     26
@@ -360,7 +360,11 @@ static const char *wmessages[] = {
 #define WRN_NO_OPERANDS WARNING | 0
     "%s does not take operands",
 #define WRN_ORG_IN_PROC WARNING | 1
-    "ORG not allowed inside of PROC"
+    "ORG not allowed inside of PROC",
+#define WRN_BYTE_RANGE WARNING | 2
+    "%s value %d is out of range and will be truncated to $%02x",
+#define WRN_WORD_RANGE WARNING | 3
+    "%s value %d is out of range and will be truncated to $%04x"
 };
 
 void doError(int msgno, ...)
@@ -1362,6 +1366,35 @@ dword processArgs(char *args)
   return result;
 }
 
+/* Negative numbers reach here in two different shapes depending on how
+ * they were written: a bare literal like "-128" is negated by
+ * asm_convertNumber() using a 16-bit wraparound (e.g. -1 becomes
+ * 0x0000ffff), while an expression like "0-128" is evaluated with real
+ * (32-bit) signed int arithmetic and comes out sign-extended (e.g. -1
+ * becomes 0xffffffff). A value fits in a word if either shape leaves
+ * it representable in 16 bits: the top 16 bits are all 0 (covers 0..65535
+ * and any 16-bit-wrapped literal), or they are all 1 with bit 15 of the
+ * low 16 bits also set (a properly sign-extended -32768..-1). */
+int fitsInWord(dword num)
+{
+  if ((num & 0xffff0000) == 0)
+    return -1;
+  return (num & 0xffff0000) == 0xffff0000 && (num & 0x8000) != 0;
+}
+
+/* A value fits in a byte if it fits in a word (see fitsInWord()) and its
+ * low 16 bits -- the value's canonical 16-bit form regardless of which
+ * of the two shapes above produced it -- land in 0..255 or in the
+ * 16-bit-wrapped equivalent of -128..-1, 0xff80..0xffff. */
+int fitsInByte(dword num)
+{
+  word w;
+  if (!fitsInWord(num))
+    return 0;
+  w = num & 0xffff;
+  return w <= 0xff || w >= 0xff80;
+}
+
 void processDb(char *args, char typ)
 {
   dword num;
@@ -1398,6 +1431,10 @@ void processDb(char *args, char typ)
       args = evaluate(args, &num);
       if (typ == 'B')
       {
+        if (passNumber == 2 && !fitsInByte(num))
+        {
+          doError(WRN_BYTE_RANGE, "db", (int)num, num & 0xff);
+        }
         if (passNumber == 2 && usedReference >= 0)
         {
           if (referenceType == 'W' || referenceType == 'L')
@@ -1420,6 +1457,10 @@ void processDb(char *args, char typ)
       }
       else if (typ == 'W')
       {
+        if (passNumber == 2 && !fitsInWord(num))
+        {
+          doError(WRN_WORD_RANGE, "dw", (int)num, num & 0xffff);
+        }
         if (passNumber == 2 && usedReference >= 0)
         {
           sprintf(buffer, "?%s %04x\n", labels[usedReference], address);
@@ -2732,8 +2773,13 @@ void Asm(char *line)
         output(opcodes[pos].byte1);
         break;
       case OT_1ARG:
+        value = processArgs(args);
+        if (passNumber == 2 && !fitsInByte(value))
+        {
+          doError(WRN_BYTE_RANGE, opcodes[pos].opcode, (int)value, value & 0xff);
+        }
         output(opcodes[pos].byte1);
-        output(processArgs(args) & 0xff);
+        output(value & 0xff);
         if (passNumber == 2 && usedReference >= 0)
         {
           if (referenceType == 'W' || referenceType == 'L')
@@ -3474,6 +3520,11 @@ void assembleFile(char *sourceFile)
   passNumber = 1;
   codeGenerated = 0;
   clear();
+  if (strlen(sourceFile) >= sizeof(baseName) - 7)
+  {
+    fprintf(stderr, "Source file path too long: %s\n", sourceFile);
+    exit(1);
+  }
   strcpy(baseName, sourceFile);
   p = strchr(baseName, '.');
   if (p != NULL)
