@@ -220,12 +220,13 @@ $F7
 
 Expression evaluation is available anywhere a numeric value is expected (instruction operands, `equ`, `db`/`dw`/`ds` arguments, `#if`, etc. — including the `[month]`/`[day]`/... build-time variables listed above). Standard C-like precedence applies (unary operators and `abs()`/`sgn()`/`high`/`low` bind tightest, then `* / %`, then `+ -`, then `<< >>`, then `& | ^`, then the comparisons, then `&& ||`).
 
+* Values are 32-bit signed: `-1`, `0-1` and `~0` are all `0xffffffff`, and a label or `equ` constant holds exactly the 32-bit value its expression produced (so `M1: equ -1` makes `dd M1` emit `ff ff ff ff` and `M1 == -1` true). `db`/`dw`/instruction operands take the low byte/word, warning only if the value doesn't fit. Values exported to the linker (`public`) and shown in the symbol listing are the low 16 bits. Note that `0ffffh` and `-1` are different values in comparisons.
 * Binary arithmetic: `+` `-` `*` `/` `%` (modulo)
 * Binary bitwise: `&` (and) `|` (or) `^` (xor) `<<` (shift left) `>>` (shift right)
 * Binary comparison: `==` (or bare `=`) `!=` `<` `>` `<=` `>=`
 * Binary logical: `&&` `||`
 * `expr . bit` — byte-select: if `bit`'s low bit is 1, take `expr`'s high byte; if 0, take its low byte (an older/alternate spelling of `high`/`low` below)
-* Unary prefix: `!expr` (logical/bitwise not), `high expr` (high byte), `low expr` (low byte), `abs(expr)`, `sgn(expr)` (-1/0/1)
+* Unary prefix: `!expr` (logical not), `~expr` (bitwise not / one's complement), `high expr` (high byte), `low expr` (low byte), `abs(expr)`, `sgn(expr)` (-1/0/1)
 * `high`/`low` (and the `.` byte-select operator above) correctly extract a symbol's high/low byte at assemble time even for a relocatable, link-time-resolved label — including across a byte-boundary-crossing offset, e.g. `high (some_label+300)`.
 * `relocatable_symbol + N` resolves correctly as of v1.6 whether `N` is a bare numeral or a named `equ` constant — see the "Special Features and Usage Notes" section above for the fix history and the one still-open, unrelated `equ`-aliasing limitation.
 

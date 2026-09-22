@@ -11,7 +11,7 @@
 
 #include "header.h"
 
-#define NAME_AND_VERSION  "Asm/02 v1.9"
+#define NAME_AND_VERSION  "Asm/02 v1.10"
 
 #define MAX_LINE_LEN      256
 #define LIST_CODE_LEN     26
@@ -47,6 +47,7 @@ typedef struct
 #define OT_EEVER  26
 #define OT_DF     27
 
+#define OP_BNOT   0x96
 #define OP_NOT    0x95
 #define OP_LOW    0x94
 #define OP_HIGH   0x93
@@ -556,7 +557,7 @@ int isRReg(char *line)
   return 0;
 }
 
-void addLabel(char *label, word value)
+void addLabel(char *label, dword value)
 {
   int i;
   if (passNumber == 2)
@@ -573,7 +574,7 @@ void addLabel(char *label, word value)
   }
   numLabels++;
   labels = (char **)realloc(labels, sizeof(char *) * numLabels);
-  labelValues = (word *)realloc(labelValues, sizeof(word) * numLabels);
+  labelValues = (dword *)realloc(labelValues, sizeof(dword) * numLabels);
   labelProcs = (char **)realloc(labelProcs, sizeof(char *) * numLabels);
   labelIsEqu = (int *)realloc(labelIsEqu, sizeof(int) * numLabels);
 
@@ -590,7 +591,7 @@ void addLabel(char *label, word value)
   labelIsEqu[numLabels - 1] = 0;
 }
 
-word getLabel(char *label)
+dword getLabel(char *label)
 {
   int i;
   if (passNumber == 1)
@@ -658,7 +659,7 @@ int findLabel(char *label)
   return -1;
 }
 
-void setLabel(char *label, word value)
+void setLabel(char *label, dword value)
 {
   int i;
   for (i = 0; i < numLabels; i++)
@@ -928,8 +929,8 @@ char *asm_convertNumber(char *buffer, dword *value, byte *success)
   }
   if (neg != 0)
   {
-    val1 = (val1 ^ 0xffff) + 1;
-    val2 = (val2 ^ 0xffff) + 1;
+    val1 = -val1;
+    val2 = -val2;
   }
   *success = 0xff;
   *value = (ishex != 0) ? val2 : val1;
@@ -969,6 +970,11 @@ char *evaluate(char *pos, dword *result)
       else if (*pos == '!')
       {
         ops[ostack++] = OP_NOT;
+        flag = -1;
+      }
+      else if (*pos == '~')
+      {
+        ops[ostack++] = OP_BNOT;
         flag = -1;
       }
       else if (strncasecmp(pos, "abs(", 4) == 0)
@@ -1260,6 +1266,9 @@ char *evaluate(char *pos, dword *result)
         case OP_NOT:
           numbers[nstack] = !numbers[nstack];
           break;
+        case OP_BNOT:
+          numbers[nstack] = ~numbers[nstack];
+          break;
         case OP_LAND:
           numbers[nstack - 1] &= numbers[nstack];
           break;
@@ -1366,26 +1375,24 @@ dword processArgs(char *args)
   return result;
 }
 
-/* Negative numbers reach here in two different shapes depending on how
- * they were written: a bare literal like "-128" is negated by
- * asm_convertNumber() using a 16-bit wraparound (e.g. -1 becomes
- * 0x0000ffff), while an expression like "0-128" is evaluated with real
- * (32-bit) signed int arithmetic and comes out sign-extended (e.g. -1
- * becomes 0xffffffff). A value fits in a word if either shape leaves
- * it representable in 16 bits: the top 16 bits are all 0 (covers 0..65535
- * and any 16-bit-wrapped literal), or they are all 1 with bit 15 of the
- * low 16 bits also set (a properly sign-extended -32768..-1). */
+/* Negative values are sign-extended to 32 bits (e.g. -1 is 0xffffffff),
+ * whether written as a bare literal like "-1", as an expression like
+ * "0-1", or through an equ constant (labels hold the exact 32-bit value
+ * their expression produced). A value fits in a word if its top 16 bits
+ * are all 0 (0..65535) or all 1 (a sign-extended negative). The all-1 case deliberately does not
+ * require bit 15 to be set, so that a bitwise complement of a word with its
+ * high bit set -- e.g. "~8000h", which is 0xffff7fff -- is accepted rather
+ * than flagged; the cost is that a few genuinely out-of-range negatives
+ * such as -40000 are no longer warned about. */
 int fitsInWord(dword num)
 {
-  if ((num & 0xffff0000) == 0)
-    return -1;
-  return (num & 0xffff0000) == 0xffff0000 && (num & 0x8000) != 0;
+  return (num & 0xffff0000) == 0 || (num & 0xffff0000) == 0xffff0000;
 }
 
 /* A value fits in a byte if it fits in a word (see fitsInWord()) and its
- * low 16 bits -- the value's canonical 16-bit form regardless of which
- * of the two shapes above produced it -- land in 0..255 or in the
- * 16-bit-wrapped equivalent of -128..-1, 0xff80..0xffff. */
+ * low 16 bits land in 0..255 or in the 16-bit equivalent of -128..-1,
+ * 0xff80..0xffff (so a 16-bit value written in hex, like 0ffffh, is
+ * accepted as well as a sign-extended -1). */
 int fitsInByte(dword num)
 {
   word w;
@@ -2959,7 +2966,7 @@ void Asm(char *line)
           {
             if (outMode == 'R')
             {
-              sprintf(buffer, "=%s %04x\n", labels[i], labelValues[i]);
+              sprintf(buffer, "=%s %04x\n", labels[i], labelValues[i] & 0xffff);
               write(outFile, buffer, strlen(buffer));
             }
           }
@@ -3612,7 +3619,7 @@ void assembleFile(char *sourceFile)
     printf("Symbols:\n");
     for (i = 22; i < numLabels; i++)
     {
-      printf("  %04x  %-20s %-20s", labelValues[i], labels[i], labelProcs[i]);
+      printf("  %04x  %-20s %-20s", labelValues[i] & 0xffff, labels[i], labelProcs[i]);
       if (isExternal(i) >= 0)
         printf(" *");
       printf("\n");
