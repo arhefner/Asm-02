@@ -11,7 +11,7 @@
 
 #include "header.h"
 
-#define NAME_AND_VERSION  "Asm/02 v1.10"
+#define NAME_AND_VERSION  "Asm/02 v1.11"
 
 #define MAX_LINE_LEN      256
 #define LIST_CODE_LEN     26
@@ -354,7 +354,13 @@ static const char *emessages[] = {
 #define LINE_TOO_LONG                 (ERROR | 33)
     "Line too long",
 #define ERR_NESTED_PROC               (ERROR | 34)
-    "PROC cannot be nested"
+    "PROC cannot be nested",
+#define ERR_OP_OPERAND_COUNT          (ERROR | 35)
+    "%s expects %s operand(s), found %d",
+#define ERR_OP_OPERAND                (ERROR | 36)
+    "%s operand %d %s",
+#define ERR_OP_NO_FORM                (ERROR | 37)
+    "No form of %s (%s) accepts operands: %s"
 };
 
 static const char *wmessages[] = {
@@ -1390,16 +1396,19 @@ int fitsInWord(dword num)
 }
 
 /* A value fits in a byte if it fits in a word (see fitsInWord()) and its
- * low 16 bits land in 0..255 or in the 16-bit equivalent of -128..-1,
- * 0xff80..0xffff (so a 16-bit value written in hex, like 0ffffh, is
- * accepted as well as a sign-extended -1). */
+ * low 16 bits land in 0..255 or 0xff00..0xffff (so a 16-bit value written
+ * in hex, like 0ffffh, is accepted as well as a sign-extended -1). As with
+ * fitsInWord(), the negative case deliberately does not require bit 7 to be
+ * set, so that a bitwise complement of a byte with its high bit set --
+ * e.g. "~0ffh", which is 0xffffff00 -- is accepted rather than flagged; the
+ * cost is that negatives from -129 to -256 are no longer warned about. */
 int fitsInByte(dword num)
 {
   word w;
   if (!fitsInWord(num))
     return 0;
   w = num & 0xffff;
-  return w <= 0xff || w >= 0xff80;
+  return w <= 0xff || w >= 0xff00;
 }
 
 void processDb(char *args, char typ)
@@ -1688,6 +1697,106 @@ void compileOp(char *line)
   strcpy(arglist[numOps - 1], args);
   translation[numOps - 1] = (char *)malloc(strlen(trans) + 1);
   strcpy(translation[numOps - 1], trans);
+}
+
+/*
+ * Describe why operand j fails arg type t of a .op definition, or
+ * return NULL if it is acceptable.
+ */
+static const char *opOperandProblem(char t, dword value, byte isreg,
+                                    char *buffer)
+{
+  switch (t)
+  {
+  case 'N':
+  case 'n':
+    if (value > 15)
+    {
+      sprintf(buffer, "value %d is out of range (0-15)", (int)value);
+      return buffer;
+    }
+    break;
+  case 'B':
+  case 'b':
+    if (!fitsInByte(value))
+    {
+      sprintf(buffer, "value %d is out of range for a byte (-256 to 255)",
+              (int)value);
+      return buffer;
+    }
+    break;
+  case 'R':
+  case 'r':
+    if (isreg == 0 || value > 15)
+      return "must be a register (R0-RF)";
+    break;
+  }
+  return NULL;
+}
+
+/*
+ * Called when opcode names one or more .op definitions but none of
+ * them accepts the given operands. Reports the most specific error
+ * possible.
+ */
+static void opMismatchError(char *opcode, char *args, int opcount,
+                            dword *operands, byte *isreg)
+{
+  char counts[64];
+  char forms[128];
+  char reason[80];
+  const char *problem;
+  int i, j, n;
+  int candidates = 0;
+  int candidate = -1;
+
+  counts[0] = 0;
+  forms[0] = 0;
+  for (i = 0; i < numOps; i++)
+  {
+    if (strcasecmp(opcode, ops[i]) != 0)
+      continue;
+    n = strlen(arglist[i]);
+    if (n == opcount)
+    {
+      candidates++;
+      candidate = i;
+    }
+    if (strlen(forms) + n + 4 < sizeof(forms))
+    {
+      if (forms[0] != 0)
+        strcat(forms, ", ");
+      strcat(forms, (n == 0) ? "none" : arglist[i]);
+    }
+    sprintf(reason, "%d", n);
+    if (strstr(counts, reason) == NULL &&
+        strlen(counts) + strlen(reason) + 5 < sizeof(counts))
+    {
+      if (counts[0] != 0)
+        strcat(counts, " or ");
+      strcat(counts, reason);
+    }
+  }
+
+  if (candidates == 0)
+  {
+    doError(ERR_OP_OPERAND_COUNT, opcode, counts, opcount);
+    return;
+  }
+  if (candidates == 1)
+  {
+    for (j = 0; j < opcount; j++)
+    {
+      problem = opOperandProblem(arglist[candidate][j], operands[j],
+                                 isreg[j], reason);
+      if (problem != NULL)
+      {
+        doError(ERR_OP_OPERAND, opcode, j + 1, problem);
+        return;
+      }
+    }
+  }
+  doError(ERR_OP_NO_FORM, opcode, forms, args);
 }
 
 // ************************************************************************
@@ -2238,7 +2347,7 @@ void Asm(char *line)
   char label[32];
   char opcode[32];
   char args[256];
-  word operands[32];
+  dword operands[32];
   char operandsEType[32];
   int operandsERef[32];
   byte isreg[32];
@@ -2602,17 +2711,9 @@ void Asm(char *line)
         {
           flag = 0xff;
           for (j = 0; j < strlen(arglist[i]); j++)
-          {
-            if (arglist[i][j] == 'N' || arglist[i][j] == 'n')
-              if (operands[j] > 15)
-                flag = 0;
-            if (arglist[i][j] == 'B' || arglist[i][j] == 'b')
-              if (operands[j] > 255)
-                flag = 0;
-            if (arglist[i][j] == 'R' || arglist[i][j] == 'r')
-              if (isreg[j] == 0 || operands[j] > 15)
-                flag = 0;
-          }
+            if (opOperandProblem(arglist[i][j], operands[j], isreg[j],
+                                 buffer) != NULL)
+              flag = 0;
           if (flag)
           {
             macro = i;
@@ -2622,7 +2723,16 @@ void Asm(char *line)
     }
     if (pos < 0 && macro == -1)
     {
-      doError(ERR_UNKNOWN_OPCODE, opcode); // unknown opcode
+      for (i = 0; i < numOps; i++)
+        if (strcasecmp(opcode, ops[i]) == 0)
+          break;
+      if (i < numOps)
+      {
+        rtrim(args);
+        opMismatchError(ops[i], ltrim(args), opcount, operands, isreg);
+      }
+      else
+        doError(ERR_UNKNOWN_OPCODE, opcode); // unknown opcode
       sprintf(lst, "%7s                   %s\n", lineNo(), orig);
       list(lst);
       return;
