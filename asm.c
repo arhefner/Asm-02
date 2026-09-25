@@ -11,7 +11,7 @@
 
 #include "header.h"
 
-#define NAME_AND_VERSION  "Asm/02 v1.11"
+#define NAME_AND_VERSION  "Asm/02 v1.12"
 
 #define MAX_LINE_LEN      256
 #define LIST_CODE_LEN     26
@@ -2831,9 +2831,20 @@ void Asm(char *line)
           i++;
           if (passNumber == 2 && usedLocal >= 0)
           {
+            /* The linker rebuilds the full value of a local high-byte
+             * fixup from the stored high byte plus this companion low
+             * byte, so it must be the low byte of the WHOLE operand
+             * expression. referenceLowOffset is only the referenced
+             * label's own low byte: "mov rf, buf+510" (buf defined in
+             * the same proc) linked to buf+512, the offset's low byte
+             * silently lost. The '/' line for an external reference
+             * below already uses operands[c] & 0xff for the same
+             * reason. */
+            int oc = translation[macro][i] - '1';
             fixups[numFixups] = address;
             fixupTypes[numFixups] = 'H';
-            fixupLowOffset[numFixups] = referenceLowOffset;
+            fixupLowOffset[numFixups] = (oc >= 0 && oc <= 9)
+                ? (operands[oc] & 0xff) : referenceLowOffset;
             numFixups++;
           }
           if (valid)
