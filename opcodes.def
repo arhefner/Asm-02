@@ -1,26 +1,261 @@
+;------------------------------------------------------
+; Asm/02 extended opcodes
+;
+; Each .op line is: .op "opcode","arglist","translation"
+;
+; Argument types used in the notes below:
+;   R    - a register, R0-RF (must be written as a register)
+;   N    - a nybble, 0-15 (a register or a register number)
+;   B    - a byte value
+;   W    - a word (16-bit) value or address
+;
+; Notation:
+;   D        - the accumulator
+;   DF       - the carry/borrow flag
+;   R(X)     - the register currently selected as X
+;   M(R(X))  - the memory byte R(X) points to
+;   reg.0/.1 - low/high byte of a register
+;
+; "Stack" means the usual 1802 convention: R(X) points to the
+; first free byte below the stacked data, and the stack grows
+; downward. Unless noted otherwise an opcode leaves DF and all
+; registers other than its operands unchanged.
+;------------------------------------------------------
+
+;------------------------------------------------------
+; Stack
+;------------------------------------------------------
+
+; PUSH reg - Push a 16-bit register onto the stack, high byte
+;            first (so the low byte ends up at the lower address).
+;   Requires: R(X) points to a free memory location with another
+;             free location below it.
+;   Effects:  R(X) is decremented by 2. D is destroyed (left
+;             holding reg.0).
+;   Size:     4 bytes
 .op "PUSH","R","9$1 73 8$1 73"
+
+; POP reg - Pop a 16-bit register from the stack; the inverse of
+;           PUSH.
+;   Requires: R(X) points just below a value stored by PUSH.
+;   Effects:  R(X) is incremented by 2. D is destroyed (left
+;             holding reg.1). reg must not be R(X).
+;   Size:     5 bytes
 .op "POP","R","60 72 A$1 F0 B$1"
+
+;------------------------------------------------------
+; 16-bit register loads and moves
+;------------------------------------------------------
+
+; MOV dst,src - Copy register src into register dst.
+;   Effects:  D is destroyed (left holding src.0).
+;   Size:     4 bytes
 .op "MOV","NR","9$2 B$1 8$2 A$1"
+
+; MOV dst,word - Load register dst with a 16-bit constant or
+;                address.
+;   Effects:  D is destroyed (left holding the low byte of word).
+;   Size:     6 bytes
 .op "MOV","NW","F8 H2 B$1 F8 L2 A$1"
+
+; COPY src,dst - Copy register src into register dst. Note the
+;                operand order is the reverse of MOV.
+;   Effects:  D is destroyed (left holding src.1).
+;   Size:     4 bytes
 .op "COPY","NR","8$1 A$2 9$1 B$2"
+
+; LOAD dst,word - Load register dst with a 16-bit constant or
+;                 address. Same as MOV dst,word except the low
+;                 byte is loaded first.
+;   Effects:  D is destroyed (left holding the high byte of word).
+;   Size:     6 bytes
 .op "LOAD","NW","F8 L2 A$1 F8 H2 B$1"
+
+;------------------------------------------------------
+; 16-bit compare and branch
+;------------------------------------------------------
+
+; MATCH reg,word - Compare a register with a 16-bit constant
+;                  (unsigned). reg itself is not changed.
+;   Requires: free memory location at M(R(X)).
+;   Effects:  D is zero if reg = word, non-zero otherwise.
+;             DF is 1 if reg >= word, 0 if reg < word.
+;             The contents of M(R(X)) are destroyed; R(X) itself
+;             is unchanged.
+;   Size:     9 bytes
 .op "MATCH","NW","8$1 FF L2 73 60 9$1 7F H2 F1"
+
+; BRNZ reg,addr - Short branch to addr if the 16-bit register is
+;                 not zero.
+;   Requires: addr is in the same page as the instruction; the
+;             assembler reports an error if not. The instruction
+;             itself must not straddle a page boundary.
+;   Effects:  D is destroyed (zero if the branch is not taken).
+;   Size:     6 bytes
 .op "BRNZ","RW","8$1 3A T2 9$1 3A T2"
+
+; LBRNZ reg,addr - Long branch to addr if the 16-bit register is
+;                  not zero.
+;   Effects:  D is destroyed (zero if the branch is not taken).
+;   Size:     8 bytes
 .op "LBRNZ","RW","8$1 CA H2 L2 9$1 CA H2 L2"
+
+;------------------------------------------------------
+; Subroutine call and return (SCRT)
+;------------------------------------------------------
+
+; CALL addr - Call the subroutine at addr using the standard call
+;             and return technique (SEP R4 followed by the
+;             address).
+;   Requires: R4 points to the SCRT call routine, and whatever
+;             that routine itself requires (normally R2 as the
+;             stack pointer with X=2, R3 as the program counter,
+;             and R5 pointing to the SCRT return routine).
+;   Effects:  Those of the SCRT call routine in use: normally the
+;             old R6 is pushed on the stack and R6 is left
+;             pointing to the return address. Whether D and DF
+;             are passed through to the subroutine depends on
+;             that routine.
+;   Size:     3 bytes
 .op "CALL","W","D4 H1 L1"
+
+; RTN    - Return from a subroutine entered with CALL (SEP R5).
+; RETURN - Same as RTN.
+;   Requires: R5 points to the SCRT return routine, and R6 and the
+;             stack are as CALL left them.
+;   Effects:  Those of the SCRT return routine in use: normally R6
+;             is restored from the stack. Whether D and DF are
+;             passed back to the caller depends on that routine.
+;   Size:     1 byte
 .op "RTN","","D5"
 .op "RETURN","","D5"
+
+;------------------------------------------------------
+; 16-bit arithmetic
+;------------------------------------------------------
+
+; ADD16 dst,src - Add register src to register dst
+;                 (dst = dst + src).
+;   Requires: free memory location at M(R(X)). dst must not be
+;             R(X).
+;   Effects:  DF is the carry out of bit 15. D is destroyed (left
+;             holding dst.1). The contents of M(R(X)) are
+;             destroyed; R(X) itself is unchanged.
+;   Size:     12 bytes
 .op "ADD16","NR","8$2 73 60 8$1 F4 A$1 9$2 73 60 9$1 74 B$1"
+
+; SUB16 dst,src - Subtract register src from register dst
+;                 (dst = dst - src).
+;   Requires: free memory location at M(R(X)). dst must not be
+;             R(X).
+;   Effects:  DF is 1 if there was no borrow (dst >= src,
+;             unsigned), 0 if there was. D is destroyed (left
+;             holding dst.1). The contents of M(R(X)) are
+;             destroyed; R(X) itself is unchanged.
+;   Size:     12 bytes
 .op "SUB16","NR","8$2 73 60 8$1 F7 A$1 9$2 73 60 9$1 77 B$1"
+
+; SHL16 reg - Shift a 16-bit register left one bit. Bit 0 becomes
+;             zero.
+;   Effects:  DF is the bit shifted out of bit 15. D is destroyed
+;             (left holding reg.1).
+;   Size:     6 bytes
 .op "SHL16","N","8$1 FE A$1 9$1 7E B$1"
+
+; SHLC16 reg - Rotate a 16-bit register left one bit through DF.
+;              The old DF is shifted into bit 0.
+;   Requires: DF holds the bit to shift in.
+;   Effects:  DF is the bit shifted out of bit 15. D is destroyed
+;             (left holding reg.1).
+;   Size:     6 bytes
 .op "SHLC16","N","8$1 7E A$1 9$1 7E B$1"
+
+; SHR16 reg - Shift a 16-bit register right one bit (logical).
+;             Bit 15 becomes zero.
+;   Effects:  DF is the bit shifted out of bit 0. D is destroyed
+;             (left holding reg.0).
+;   Size:     6 bytes
 .op "SHR16","N","9$1 F6 B$1 8$1 76 A$1"
+
+; SHRC16 reg - Rotate a 16-bit register right one bit through DF.
+;              The old DF is shifted into bit 15.
+;   Requires: DF holds the bit to shift in.
+;   Effects:  DF is the bit shifted out of bit 0. D is destroyed
+;             (left holding reg.0).
+;   Size:     6 bytes
 .op "SHRC16","N","9$1 76 B$1 8$1 76 A$1"
+
+; ADD16 reg,word - Add a 16-bit constant to a register
+;                  (reg = reg + word).
+;   Effects:  DF is the carry out of bit 15. D is destroyed (left
+;             holding reg.1).
+;   Size:     8 bytes
 .op "ADD16","NW","8$1 FC L2 A$1 9$1 7C H2 B$1"
+
+; SUB16 reg,word - Subtract a 16-bit constant from a register
+;                  (reg = reg - word).
+;   Effects:  DF is 1 if there was no borrow (reg >= word,
+;             unsigned), 0 if there was. D is destroyed (left
+;             holding reg.1).
+;   Size:     8 bytes
 .op "SUB16","NW","8$1 FF L2 A$1 9$1 7F H2 B$1"
+
+;------------------------------------------------------
+; Flag and logic
+;------------------------------------------------------
+
+; CLC - Clear the carry flag (DF = 0).
+;   Effects:  D is unchanged.
+;   Size:     2 bytes
 .op "CLC","","FC 00"
+
+; STC - Set the carry flag (DF = 1).
+;   Effects:  D is unchanged.
+;   Size:     2 bytes
 .op "STC","","FF 00"
+
+; NOT - Complement D (all eight bits inverted).
+;   Size:     2 bytes
 .op "NOT","","FB FF"
+
+; NOT reg - Complement a 16-bit register (all sixteen bits
+;           inverted).
+;   Effects:  D is destroyed (left holding reg.1).
+;   Size:     6 bytes
 .op "NOT","R","8$1 FB FF A$1 9$1 FB FF B$1"
-.op "ABEND","B","F8 L1 FF 00 D5"
+
+;------------------------------------------------------
+; Returning a status
+;------------------------------------------------------
+
+; EXIT byte - Return from a subroutine reporting success: D is set
+;             to byte and DF is cleared, then RTN.
+;   Requires: as for RTN. The SCRT return routine must pass D and
+;             DF back to the caller.
+;   Effects:  D and DF are overwritten, plus the effects of RTN.
+;   Size:     5 bytes
+.op "EXIT","B","F8 L1 FC 00 D5"
+
+; FAIL byte - Return from a subroutine reporting failure: D is set
+;             to byte and DF is set, then RTN.
+;   Requires: as for RTN. The SCRT return routine must pass D and
+;             DF back to the caller.
+;   Effects:  D and DF are overwritten, plus the effects of RTN.
+;   Size:     5 bytes
+.op "FAIL","B","F8 L1 FF 00 D5"
+
+;------------------------------------------------------
+; Debugging
+;------------------------------------------------------
+
+; BRKPT - Breakpoint: save the current X and P, then pass control
+;         to the routine R1 points to (MARK, then SEP R1).
+;   Requires: R1 points to a breakpoint handler or debugger entry
+;             point. R2 points to a free memory location. R1 must
+;             not be the current program counter.
+;   Effects:  The (X,P) byte is stored at M(R(2)) and in T, R2 is
+;             decremented, and X is set to the old P. Execution
+;             continues in the handler with P=1; R1 is used as the
+;             program counter from then on.
+;   Size:     2 bytes
 .op "BRKPT","","79 D1"
