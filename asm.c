@@ -11,7 +11,7 @@
 
 #include "header.h"
 
-#define NAME_AND_VERSION  "Asm/02 v1.12"
+#define NAME_AND_VERSION  "Asm/02 v1.13"
 
 #define MAX_LINE_LEN      256
 #define LIST_CODE_LEN     26
@@ -463,11 +463,20 @@ char *strip(char *line)
     line++;
   for (pchar = line; *pchar != 0; pchar++)
   {
-    if (*pchar == '\'' || *pchar == '"')
+    /* A quoted string ends at the same quote character that opened it,
+     * so the other quote character inside it is ordinary text. Toggling
+     * on either one lost track of the string (e.g. db 'a"b;c'), and the
+     * ';' was then taken as the start of a comment. */
+    if (quoted)
     {
-      quoted = !quoted;
+      if (*pchar == quoted)
+        quoted = 0;
     }
-    else if (*pchar == ';' && !quoted)
+    else if (*pchar == '\'' || *pchar == '"')
+    {
+      quoted = *pchar;
+    }
+    else if (*pchar == ';')
     {
       *pchar++ = ' ';
       *pchar = '\0';
@@ -2632,8 +2641,15 @@ void Asm(char *line)
      * defReplaceEng()) already toggle on either quote character --
      * this one didn't, and it's the one that matters for db/dw/etc.
      * argument parsing. */
-    if (*line == '\'' || *line == '"')
-      qt = 1 - qt;
+    /* A string ends at the same quote character that opened it; see
+     * strip(). qt holds that character while inside a string. */
+    if (qt)
+    {
+      if (*line == qt)
+        qt = 0;
+    }
+    else if (*line == '\'' || *line == '"')
+      qt = *line;
     args[pos++] = *line++;
   }
   args[pos] = 0;
