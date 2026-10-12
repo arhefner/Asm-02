@@ -11,7 +11,7 @@
 
 #include "header.h"
 
-#define NAME_AND_VERSION  "Asm/02 v1.13"
+#define NAME_AND_VERSION  "Asm/02 v1.14"
 
 #define MAX_LINE_LEN      256
 #define LIST_CODE_LEN     26
@@ -2382,9 +2382,11 @@ void Asm(char *line)
     list(listLine);
     if (strncasecmp(line, ".align ", 7) == 0)
     {
+      word alignFrom;
       if (passNumber == 2 && outCount > 0)
         writeOutput();
       outCount = 0;
+      alignFrom = address;
       line += 7;
       line = ltrim(line);
       if (strncasecmp(line, "word", 4) == 0)
@@ -2403,6 +2405,17 @@ void Asm(char *line)
         address = (address + 127) & 0xff80;
       if (strncasecmp(line, "page", 4) == 0)
         address = (address + 255) & 0xff00;
+      /* Outside a proc, tell the linker about the bytes skipped, the
+         same way ds does. Bytes emitted later carry their own address,
+         so this only matters when nothing but ds follows the .align:
+         the linker would otherwise place the next object file inside
+         that reserved space. */
+      if (passNumber == 2 && outMode == 'R' && !inProc && address != alignFrom)
+      {
+        char buffer[32];
+        sprintf(buffer, ">%04x\n", (word)(address - alignFrom));
+        write(outFile, buffer, strlen(buffer));
+      }
       outAddress = address;
     }
     else if (strncasecmp(line, ".1805", 5) == 0)
