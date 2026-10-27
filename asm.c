@@ -11,7 +11,7 @@
 
 #include "header.h"
 
-#define NAME_AND_VERSION  "Asm/02 v1.14"
+#define NAME_AND_VERSION  "Asm/02 v1.15"
 
 #define MAX_LINE_LEN      256
 #define LIST_CODE_LEN     26
@@ -3656,6 +3656,31 @@ void clear()
   addLabel("rd", 13);
   addLabel("re", 14);
   addLabel("rf", 15);
+  /* if case sensitive labels add uppercase register labels */
+  if (labelCase) {
+    addLabel("R0", 0);
+    addLabel("R1", 1);
+    addLabel("R2", 2);
+    addLabel("R3", 3);
+    addLabel("R4", 4);
+    addLabel("R5", 5);
+    addLabel("R6", 6);
+    addLabel("R7", 7);
+    addLabel("R8", 8);
+    addLabel("R9", 9);
+    addLabel("R10", 10);
+    addLabel("R11", 11);
+    addLabel("R12", 12);
+    addLabel("R13", 13);
+    addLabel("R14", 14);
+    addLabel("R15", 15);
+    addLabel("RA", 10);
+    addLabel("RB", 11);
+    addLabel("RC", 12);
+    addLabel("RD", 13);
+    addLabel("RE", 14);
+    addLabel("RF", 15);
+  }
 }
 
 void assembleFile(char *sourceFile)
